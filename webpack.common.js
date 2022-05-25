@@ -5,39 +5,30 @@
 
  module.exports = {
    entry: {
-    app: './src/index.ts',
+    app: "./src/en-session-attribution.ts",
     mode: "development",
     devtool: "source-map",
-    optimization: {
-        usedExports: true,
-    },
    },
-   plugins: [
-     new HtmlWebpackPlugin({
-       title: 'Production',
-     }),
-   ],
    output: {
-     filename: 'en-session-attribution.js',
+     filename: '[name].js',
      path: path.resolve(__dirname, 'dist'),
-     clean: true,
    },
-   module: {
-       rules: [
-        {
-            test: /\.tsx?$/,
-            exclude: /node_modules/,
-            use: {
-                loader: "ts-loader",
-                options: {
-                    // disable type checker - we will use it in fork plugin
-                    transpileOnly: true,
+    module: {
+        rules: [
+            {
+                test: /\.tsx?$/,
+                exclude: /node_modules/,
+                use: {
+                    loader: "ts-loader",
+                    options: {
+                        // disable type checker - we will use it in fork plugin
+                        transpileOnly: true,
+                    },
                 },
             },
-        },
-    ],
-   },
-   resolve: {
+        ],
+    },
+    resolve: {
         extensions: [".tsx", ".ts", ".js"],
     },
 
