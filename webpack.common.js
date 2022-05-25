@@ -4,15 +4,16 @@
  const ESLintPlugin = require("eslint-webpack-plugin");
 
  module.exports = {
-   entry: {
-    app: "./src/en-session-attribution.ts",
+    entry: "./src/en-session-attribution.ts",
     mode: "development",
     devtool: "source-map",
-   },
-   output: {
-     filename: '[name].js',
-     path: path.resolve(__dirname, 'dist'),
-   },
+    optimization: {
+        usedExports: "global",
+    },
+    output: {
+        filename: 'en-session-attribution.js',
+        path: path.resolve(__dirname, 'dist'),
+    },
     module: {
         rules: [
             {

@@ -7,7 +7,7 @@ function getCookie(cookie: string) {
     const cookieVals: Array<string> = [];
 
     cookiesArr.forEach((element) => {
-        let elementArr = element.split("=");
+        const elementArr = element.split("=");
 
         cookieNames.push(elementArr[0]);
         cookieVals.push(elementArr[1]);
@@ -92,7 +92,7 @@ function checkSessionLength(session: string) {
     return session;
 }
 
-function getCurrentTime(string: boolean = true) {
+function getCurrentTime(string = true) {
     if(string) {
         return (Math.round(Date.now()/1000)).toString();
     } else {
@@ -121,7 +121,10 @@ const sessionAttribution = function() {
         enCookie = "";
     }
 
-    const memAttribute: HTMLInputElement | null = document.querySelector("[name='" + getScriptData("mem_attribution") + "']");
+    const supporterTag = getScriptData("mem_attribution");
+    const memAttribute: HTMLInputElement | null = document.querySelector(`input[name="${supporterTag}"]`);
+    console.log(memAttribute);
+    console.log(supporterTag);
 
     if(memAttribute) {
         enMergeTag = memAttribute.value;

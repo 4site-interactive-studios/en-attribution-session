@@ -2,11 +2,11 @@
   "name": "en-session-attribution",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "/dist/en-session-attribution.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "webpack serve --open --config webpack.dev.js",
-    "build": "tsc -m es6 --outDir dist"
+    "build": "NODE_ENV=production webpack --config webpack.prod.js"
   },
   "repository": {
     "type": "git",
