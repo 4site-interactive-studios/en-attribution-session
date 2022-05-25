@@ -21,7 +21,7 @@ function setCookie(cookieName, cookieVal) {
     return newCookie;
 }
 function getScriptData(attribute, defaultValue = "") {
-    const scriptTag = document.querySelector("script[src*='as-en.js']");
+    const scriptTag = document.querySelector("script[src*='attribution.js']");
     if (scriptTag) {
         const data = scriptTag.getAttribute("session-" + attribute);
         return data !== null && data !== void 0 ? data : defaultValue;
