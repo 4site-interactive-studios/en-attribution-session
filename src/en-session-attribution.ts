@@ -38,33 +38,55 @@ function getScriptData(attribute: string, defaultValue = "") {
 
 function createNewSession() {
     const sessionParams = [];
-    const url = new URL(window.location.href);
+    const currentURL = new URL(document.location.href);
+    let referralURL;
+    if(window.location !== window.parent.location) {
+        referralURL = document.location.href;
+    } else {
+        referralURL = (document.referrer === "") ? "direct" : document.referrer;
+        if(referralURL !== "direct") {
+            const tempURL = new URL(referralURL);
+            referralURL = tempURL.hostname;
+        }
+    }
 
     sessionParams.push(uuidv4()); // Generate UUID
     sessionParams.push(getCurrentTime()); // First seen
     sessionParams.push(getCurrentTime()); // Last seen
     sessionParams.push("1"); // Session page counter
-    sessionParams.push(url.hostname); // First referral URL
-    sessionParams.push(url.search.slice(1, -1)); // First referral parameters
+    sessionParams.push(referralURL); // First referral URL
+    sessionParams.push(currentURL.search.slice(1)); // First referral parameters
 
     const sessionInfo = sessionParams.join("|");
     return sessionInfo;
 }
 
-function updateSession(currentSession: string) {
+function updateSession(currentSession: string, updatepage = true) {
     const sessionParams = currentSession.split("|");
     sessionParams[2] = getCurrentTime() as string; // Update last-seen
-    sessionParams[3] = (parseInt(sessionParams[3]) + 1).toString(); // Update session page counter
+    const currentURL = new URL(document.location.href);
+    let referralURL;
+    if(window.location !== window.parent.location) {
+        referralURL = document.location.href;
+    } else {
+        referralURL = (document.referrer === "") ? "direct" : document.referrer;
+        if(referralURL !== "direct") {
+            const tempURL = new URL(referralURL);
+            referralURL = tempURL.hostname;
+        }
+    }
+    
+    if(updatepage) {
+        sessionParams[3] = (parseInt(sessionParams[3]) + 1).toString(); // Update session page counter
+    }
 
     // Update current referral URL
     if(sessionParams.length === 6) {
-        const currentURL = new URL(window.location.href);
-        sessionParams.push(currentURL.hostname);
-        sessionParams.push(currentURL.search.slice(1,-1));
+        sessionParams.push(referralURL);
+        sessionParams.push(currentURL.search.slice(1));
     } else {
-        const currentURL = new URL(window.location.href);
-        sessionParams[6] = currentURL.hostname;
-        sessionParams[7] = currentURL.search.slice(1,-1);
+        sessionParams[6] = referralURL;
+        sessionParams[7] = currentURL.search.slice(1);
     }
 
     return sessionParams.join("|");
@@ -100,7 +122,11 @@ function getCurrentTime(string = true) {
     }
 }
 
-const sessionAttribution = function() {
+function getLastSeen(session: string) {
+    return session.split("|")[2];
+}
+
+const sessionAttribution = function(updatepage = true) {
     const queryStr = window.location.search;
     const urlParams = new URLSearchParams(queryStr);
     let currentSession = "";
@@ -123,8 +149,6 @@ const sessionAttribution = function() {
 
     const supporterTag = getScriptData("mem_attribution");
     const memAttribute: HTMLInputElement | null = document.querySelector(`input[name="${supporterTag}"]`);
-    console.log(memAttribute);
-    console.log(supporterTag);
 
     if(memAttribute) {
         enMergeTag = memAttribute.value;
@@ -140,13 +164,13 @@ const sessionAttribution = function() {
         currentSession = "";
     } else {
         // Get the most recent session info
-        const cookieLastSeen = parseInt(enCookie.split("|")[2]) ?? 0;
-        const mergeTagLastSeen = parseInt(enMergeTag.split("|")[2]) ?? 0;
-        const paramLastSeen = parseInt(enSessionParam.split("|")[2]) ?? 0;
+        const cookieLastSeen = isNaN(parseInt(getLastSeen(enCookie))) ? 0 : parseInt(getLastSeen(enCookie));
+        const mergeTagLastSeen = isNaN(parseInt(getLastSeen(enMergeTag))) ? 0 : parseInt(getLastSeen(enMergeTag));
+        const paramLastSeen = isNaN(parseInt(getLastSeen(enSessionParam))) ? 0 : parseInt(getLastSeen(enSessionParam));
 
         currentSession = (mergeTagLastSeen <= cookieLastSeen) ? enCookie : enMergeTag;
         
-        const currentSessionLastSeen = parseInt(currentSession.split("|")[2]) ?? 0;
+        const currentSessionLastSeen = parseInt(getLastSeen(currentSession)) ?? 0;
         currentSession = (currentSessionLastSeen <= paramLastSeen) ? enSessionParam : currentSession;
     }
 
@@ -155,7 +179,7 @@ const sessionAttribution = function() {
     let newSession: boolean;
     const NUMBER = false;
 
-    if(currentSession === "" || getCurrentTime(NUMBER) as number - parseInt(currentSession.split("|")[2]) >= parseInt(sessionLength)) {
+    if(currentSession === "" || getCurrentTime(NUMBER) as number - parseInt(getLastSeen(currentSession)) >= parseInt(sessionLength)) {
         newSession = true;
     } else {
         newSession = false;
@@ -163,7 +187,7 @@ const sessionAttribution = function() {
 
     // Check if script is running outside Engaging Networks
     if(!("pageJson" in window)) {
-        const pageLinks = document.querySelectorAll("a").forEach(item => {
+        document.querySelectorAll("a").forEach(item => {
             item.addEventListener("click", event => {
                 if(/\/page\/[0-9]{5,6}\//.test(item.href)) {
                     event.preventDefault();
@@ -172,7 +196,7 @@ const sessionAttribution = function() {
                     if(newSession) {
                         currentSession = createNewSession();
                     } else {
-                        currentSession = updateSession(currentSession);
+                        currentSession = updateSession(currentSession, updatepage);
                     }
 
                     let encodedSession = window.btoa(currentSession);
@@ -192,7 +216,7 @@ const sessionAttribution = function() {
         if(newSession) {
             currentSession = createNewSession();
         } else {
-            currentSession = updateSession(currentSession);
+            currentSession = updateSession(currentSession, updatepage);
         }
 
         let encodedSession = window.btoa(currentSession);
@@ -210,13 +234,14 @@ const sessionAttribution = function() {
 }
 
 // Save session data on page load
-window.addEventListener("load", event => {
+window.addEventListener("load", () => {
     sessionAttribution();
 });
 
 // Save session data when tab is in focus
-window.addEventListener("visibilitychange", event => {
+window.addEventListener("visibilitychange", () => {
     if(document.visibilityState === "visible") {
-        sessionAttribution();
+        const UPDATEPAGE = false;
+        sessionAttribution(UPDATEPAGE);
     }
 });
