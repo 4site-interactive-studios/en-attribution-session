@@ -62,8 +62,8 @@ function createNewSession() {
 }
 
 function updateSession(currentSession: string, updatepage = true) {
-  const sessionParams = currentSession.split("|");
-  sessionParams[2] = getCurrentTime() as string; // Update last-seen
+  const sessionParams = getSessionObj(currentSession);
+  sessionParams["last_seen"] = getCurrentTime() as string; // Update last-seen
   const currentURL = new URL(document.location.href);
   let referralURL;
   if (window.location !== window.parent.location) {
@@ -77,32 +77,28 @@ function updateSession(currentSession: string, updatepage = true) {
   }
 
   if (updatepage) {
-    sessionParams[3] = (parseInt(sessionParams[3]) + 1).toString(); // Update session page counter
+    sessionParams["page_count"] = (
+      parseInt(sessionParams["page_count"]) + 1
+    ).toString(); // Update session page counter
   }
 
   // Update current referral URL
-  if (sessionParams.length === 6) {
-    sessionParams.push(referralURL);
-    sessionParams.push(currentURL.search.slice(1));
-  } else {
-    sessionParams[6] = referralURL;
-    sessionParams[7] = currentURL.search.slice(1);
-  }
+  sessionParams["current_url"] = referralURL;
+  sessionParams["current_params"] = currentURL.search.slice(1);
 
-  return sessionParams.join("|");
+  return Object.values(sessionParams).join("|");
 }
 
 function checkSessionLength(session: string) {
   let decodedSession = window.atob(session);
 
   if (session.length > 1500 && decodedSession.split("|").length > 6) {
-    const sessionParams = decodedSession.split("|");
+    //const sessionParams = decodedSession.split("|");
+    const sessionParams = getSessionObj(decodedSession);
+    delete sessionParams["current_url"];
+    delete sessionParams["current_params"];
 
-    while (sessionParams.length > 6) {
-      sessionParams.pop();
-    }
-
-    decodedSession = sessionParams.join("|");
+    decodedSession = Object.values(sessionParams).join("|");
     session = window.btoa(decodedSession);
   }
 
@@ -122,8 +118,26 @@ function getCurrentTime(string = true) {
   }
 }
 
-function getLastSeen(session: string) {
-  return session.split("|")[2];
+function getSessionObj(session: string) {
+  const sessionArr = session.split("|");
+  const sessionObj: { [key: string]: string } = {};
+
+  sessionObj["uuid"] = sessionArr[0];
+  sessionObj["first_seen"] = sessionArr[1];
+  sessionObj["last_seen"] = sessionArr[2];
+  sessionObj["page_count"] = sessionArr[3];
+  sessionObj["first_url"] = sessionArr[4];
+  sessionObj["first_params"] = sessionArr[5];
+
+  if (sessionArr[6]) {
+    sessionObj["current_url"] = sessionArr[6];
+  }
+
+  if (sessionArr[7]) {
+    sessionObj["current_params"] = sessionArr[7];
+  }
+
+  return sessionObj;
 }
 
 const sessionAttribution = function (updatepage = true) {
@@ -166,19 +180,24 @@ const sessionAttribution = function (updatepage = true) {
     currentSession = "";
   } else {
     // Get the most recent session info
-    const cookieLastSeen = isNaN(parseInt(getLastSeen(enCookie)))
+    const cookieLastSeen = isNaN(parseInt(getSessionObj(enCookie)["last_seen"]))
       ? 0
-      : parseInt(getLastSeen(enCookie));
-    const mergeTagLastSeen = isNaN(parseInt(getLastSeen(enMergeTag)))
+      : parseInt(getSessionObj(enCookie)["last_seen"]);
+    const mergeTagLastSeen = isNaN(
+      parseInt(getSessionObj(enMergeTag)["last_seen"])
+    )
       ? 0
-      : parseInt(getLastSeen(enMergeTag));
-    const paramLastSeen = isNaN(parseInt(getLastSeen(enSessionParam)))
+      : parseInt(getSessionObj(enMergeTag)["last_seen"]);
+    const paramLastSeen = isNaN(
+      parseInt(getSessionObj(enSessionParam)["last_seen"])
+    )
       ? 0
-      : parseInt(getLastSeen(enSessionParam));
+      : parseInt(getSessionObj(enSessionParam)["last_seen"]);
 
     currentSession = mergeTagLastSeen <= cookieLastSeen ? enCookie : enMergeTag;
 
-    const currentSessionLastSeen = parseInt(getLastSeen(currentSession)) ?? 0;
+    const currentSessionLastSeen =
+      parseInt(getSessionObj(currentSession)["last_seen"]) ?? 0;
     currentSession =
       currentSessionLastSeen <= paramLastSeen ? enSessionParam : currentSession;
   }
@@ -191,7 +210,7 @@ const sessionAttribution = function (updatepage = true) {
   if (
     currentSession === "" ||
     (getCurrentTime(NUMBER) as number) -
-      parseInt(getLastSeen(currentSession)) >=
+      parseInt(getSessionObj(currentSession)["last_seen"]) >=
       parseInt(sessionLength)
   ) {
     newSession = true;
