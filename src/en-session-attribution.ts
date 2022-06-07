@@ -21,7 +21,7 @@ function getCookie(cookie: string) {
 }
 
 function setCookie(cookieName: string, cookieVal: string) {
-  const newCookie = `${cookieName}=${cookieVal}`;
+  const newCookie = `${cookieName}=${cookieVal};path=/`;
   document.cookie = newCookie;
   return newCookie;
 }
@@ -41,7 +41,7 @@ function createNewSession() {
   const currentURL = new URL(document.location.href);
   let referralURL;
   if (window.location !== window.parent.location) {
-    referralURL = document.location.href;
+    referralURL = document.referrer;
   } else {
     referralURL = document.referrer === "" ? "direct" : document.referrer;
     if (referralURL !== "direct") {
@@ -50,12 +50,18 @@ function createNewSession() {
     }
   }
 
+  currentURL.searchParams.delete("engrid_session");
+
   sessionParams.push(uuidv4()); // Generate UUID
   sessionParams.push(getCurrentTime()); // First seen
   sessionParams.push(getCurrentTime()); // Last seen
   sessionParams.push("1"); // Session page counter
   sessionParams.push(referralURL); // First referral URL
-  sessionParams.push(currentURL.search.slice(1)); // First referral parameters
+  if (currentURL.search.length > 0) {
+    sessionParams.push(currentURL.search.slice(1)); // First referral parameters
+  } else {
+    sessionParams.push("");
+  }
 
   const sessionInfo = sessionParams.join("|");
   return sessionInfo;
@@ -82,9 +88,11 @@ function updateSession(currentSession: string, updatepage = true) {
     ).toString(); // Update session page counter
   }
 
+  currentURL.searchParams.delete("engrid_session");
   // Update current referral URL
-  sessionParams["current_url"] = referralURL;
-  sessionParams["current_params"] = currentURL.search.slice(1);
+  sessionParams["current_referral"] = referralURL;
+  sessionParams["current_params"] =
+    currentURL.search.length > 0 ? currentURL.search.slice(1) : "";
 
   return Object.values(sessionParams).join("|");
 }
@@ -95,7 +103,7 @@ function checkSessionLength(session: string) {
   if (session.length > 1500 && decodedSession.split("|").length > 6) {
     //const sessionParams = decodedSession.split("|");
     const sessionParams = getSessionObj(decodedSession);
-    delete sessionParams["current_url"];
+    delete sessionParams["current_referral"];
     delete sessionParams["current_params"];
 
     decodedSession = Object.values(sessionParams).join("|");
@@ -126,11 +134,11 @@ function getSessionObj(session: string) {
   sessionObj["first_seen"] = sessionArr[1];
   sessionObj["last_seen"] = sessionArr[2];
   sessionObj["page_count"] = sessionArr[3];
-  sessionObj["first_url"] = sessionArr[4];
+  sessionObj["first_referral"] = sessionArr[4];
   sessionObj["first_params"] = sessionArr[5];
 
   if (sessionArr[6]) {
-    sessionObj["current_url"] = sessionArr[6];
+    sessionObj["current_referral"] = sessionArr[6];
   }
 
   if (sessionArr[7]) {
@@ -140,7 +148,22 @@ function getSessionObj(session: string) {
   return sessionObj;
 }
 
-const sessionAttribution = function (updatepage = true) {
+function debugSession(session: string) {
+  const currentSesh = document.querySelector(".currentSession");
+  if (currentSesh) {
+    currentSesh.innerHTML = "Current session: " + session;
+  }
+
+  const sessionObj = getSessionObj(session);
+
+  if (window.location !== window.parent.location) {
+    console.log("[iframe session]", sessionObj);
+  } else {
+    console.log("[page session]", sessionObj);
+  }
+}
+
+const sessionAttribution = function (updatepage = true, mirroredSession = "") {
   const queryStr = window.location.search;
   const urlParams = new URLSearchParams(queryStr);
   let currentSession = "";
@@ -203,14 +226,14 @@ const sessionAttribution = function (updatepage = true) {
   }
 
   // Determine whether session should be continued or not
-  const sessionLength = getScriptData("length", "3600");
+  const sessionLength = getScriptData("expiration", "3600");
   let newSession: boolean;
   const NUMBER = false;
+  const oldSessionObj = getSessionObj(currentSession);
 
   if (
     currentSession === "" ||
-    (getCurrentTime(NUMBER) as number) -
-      parseInt(getSessionObj(currentSession)["last_seen"]) >=
+    (getCurrentTime(NUMBER) as number) - parseInt(oldSessionObj["last_seen"]) >=
       parseInt(sessionLength)
   ) {
     newSession = true;
@@ -220,25 +243,26 @@ const sessionAttribution = function (updatepage = true) {
 
   // Check if script is running outside Engaging Networks
   if (!("pageJson" in window)) {
+    if (newSession) {
+      currentSession = createNewSession();
+    } else {
+      currentSession = updateSession(currentSession, updatepage);
+    }
+
+    let encodedSession = window.btoa(currentSession);
+    encodedSession = checkSessionLength(encodedSession);
+
+    setCookie("engrid_attribution_memory_cookie", encodedSession);
+
     document.querySelectorAll("a").forEach((item) => {
       item.addEventListener("click", (event) => {
         if (/\/page\/[0-9]{5,6}\//.test(item.href)) {
           event.preventDefault();
           const clickedURL = new URL(item.href);
 
-          if (newSession) {
-            currentSession = createNewSession();
-          } else {
-            currentSession = updateSession(currentSession, updatepage);
-          }
-
-          let encodedSession = window.btoa(currentSession);
-          encodedSession = checkSessionLength(encodedSession);
-
           if (encodedSession === "") {
             window.location.href = clickedURL.href;
           } else {
-            setCookie("engrid_attribution_memory_cookie", encodedSession);
             clickedURL.searchParams.set("engrid_session", encodedSession);
             window.location.href = clickedURL.href;
           }
@@ -264,6 +288,19 @@ const sessionAttribution = function (updatepage = true) {
       }
     }
   }
+
+  debugSession(currentSession);
+
+  // Mirror current session to Engaging Networks iframe
+  if (window.location === window.parent.location) {
+    const iframes = document.querySelectorAll("iframe");
+
+    for (let i = 0; i < iframes.length; ++i) {
+      if (/\/page\/[0-9]{5,6}\//.test(iframes[i].src)) {
+        iframes[i].contentWindow?.postMessage(currentSession, "*");
+      }
+    }
+  }
 };
 
 // Save session data on page load
@@ -273,8 +310,17 @@ window.addEventListener("load", () => {
 
 // Save session data when tab is in focus
 window.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") {
+  if (
+    window.location === window.parent.location &&
+    document.visibilityState === "visible"
+  ) {
     const UPDATEPAGE = false;
     sessionAttribution(UPDATEPAGE);
   }
 });
+
+/*window.addEventListener("message", function (event) {
+  if (this.window.location !== this.window.parent.location) {
+    sessionAttribution(false, event.data);
+  }
+});*/
