@@ -163,7 +163,8 @@ function debugSession(session: string) {
   }
 }
 
-const sessionAttribution = function (updatepage = true, mirroredSession = "") {
+function sessionAttribution(updatepage = true, mirroredSession = "") {
+  // Don't run iframe session until parent session data is mirrored
   const queryStr = window.location.search;
   const urlParams = new URLSearchParams(queryStr);
   let currentSession = "";
@@ -223,6 +224,10 @@ const sessionAttribution = function (updatepage = true, mirroredSession = "") {
       parseInt(getSessionObj(currentSession)["last_seen"]) ?? 0;
     currentSession =
       currentSessionLastSeen <= paramLastSeen ? enSessionParam : currentSession;
+  }
+
+  if (mirroredSession !== "") {
+    currentSession = mirroredSession;
   }
 
   // Determine whether session should be continued or not
@@ -287,25 +292,66 @@ const sessionAttribution = function (updatepage = true, mirroredSession = "") {
         memAttribute.value = encodedSession;
       }
     }
+
+    // Populate "Additional Comments" field
+    const additionalComments: HTMLTextAreaElement | null =
+      document.querySelector("[name='transaction.comments'");
+
+    if (!additionalComments) {
+      // Create Additional Comments field
+      const newField = document.createElement("input");
+      newField.classList.add("en__field__input");
+      newField.classList.add("en__field__input--hidden");
+      newField.setAttribute("type", "hidden");
+      newField.setAttribute("name", "transaction.comments");
+
+      const sessionObjStr = JSON.stringify(getSessionObj(currentSession));
+      newField.value = sessionObjStr;
+
+      document.querySelector("body")?.appendChild(newField);
+    }
   }
 
   debugSession(currentSession);
 
   // Mirror current session to Engaging Networks iframe
-  if (window.location === window.parent.location) {
-    const iframes = document.querySelectorAll("iframe");
-
-    for (let i = 0; i < iframes.length; ++i) {
-      if (/\/page\/[0-9]{5,6}\//.test(iframes[i].src)) {
-        iframes[i].contentWindow?.postMessage(currentSession, "*");
+  if (
+    window.location === window.parent.location &&
+    document.querySelector("iframe")
+  ) {
+    focus();
+    const listener = function () {
+      if (
+        document.activeElement === document.querySelector("iframe") &&
+        /\/page\/[0-9]{5,6}\//.test(
+          document.activeElement?.getAttribute("src") as string
+        )
+      ) {
+        const iframe = document.querySelector("iframe") as HTMLIFrameElement;
+        iframe.contentWindow?.postMessage(currentSession, "*");
       }
-    }
-  }
-};
+      window.removeEventListener("blur", listener);
+    };
 
+    window.addEventListener("blur", listener);
+  }
+
+  return currentSession;
+}
+
+let updateTime: ReturnType<typeof setInterval>;
+let parentSession: string | undefined;
 // Save session data on page load
 window.addEventListener("load", () => {
-  sessionAttribution();
+  if (window.location === window.parent.location) {
+    parentSession = sessionAttribution();
+
+    updateTime = setInterval(() => {
+      parentSession = sessionAttribution(false);
+    }, 60000);
+  } else {
+    window.parent.postMessage("Mirror session", "*");
+  }
 });
 
 // Save session data when tab is in focus
@@ -316,11 +362,35 @@ window.addEventListener("visibilitychange", () => {
   ) {
     const UPDATEPAGE = false;
     sessionAttribution(UPDATEPAGE);
+
+    updateTime = setInterval(() => {
+      sessionAttribution(UPDATEPAGE);
+    }, 60000);
+  } else {
+    clearInterval(updateTime);
   }
 });
 
-/*window.addEventListener("message", function (event) {
-  if (this.window.location !== this.window.parent.location) {
+// Pass messages between iframe and parent window
+window.addEventListener("message", function (event) {
+  if (
+    window.location !== window.parent.location &&
+    event.data !== "Mirror session"
+  ) {
     sessionAttribution(false, event.data);
+  } else if (
+    window.location === window.parent.location &&
+    parentSession &&
+    event.data === "Mirror session"
+  ) {
+    this.document
+      .querySelector("iframe")
+      ?.contentWindow?.postMessage(parentSession, "*");
   }
-});*/
+});
+
+document.addEventListener("click", () => {
+  if (window.location !== window.parent.location) {
+    window.parent.postMessage("Mirror session", "*");
+  }
+});
