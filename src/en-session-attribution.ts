@@ -1,4 +1,10 @@
-import { stringify, v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4 } from "uuid";
+
+declare global {
+  interface Window {
+    additionalCommentsTag: string;
+  }
+}
 
 function getCookie(cookie: string) {
   const cookies = document.cookie;
@@ -17,11 +23,18 @@ function getCookie(cookie: string) {
     return cookieVals[cookieNames.indexOf(cookie)];
   }
 
-  return false;
+  return "";
 }
 
-function setCookie(cookieName: string, cookieVal: string) {
-  const newCookie = `${cookieName}=${cookieVal};path=/`;
+function setCookie(
+  cookieName: string,
+  cookieVal: string,
+  expiration = getScriptData("expiration", "3600")
+) {
+  const now = new Date();
+  const expirationTime = parseInt(expiration) * 1000 + now.getTime();
+  now.setTime(expirationTime);
+  const newCookie = `${cookieName}=${cookieVal};expires=${now.toUTCString()};path=/`;
   document.cookie = newCookie;
   return newCookie;
 }
@@ -53,8 +66,8 @@ function createNewSession() {
   currentURL.searchParams.delete("engrid_session");
 
   sessionParams.push(uuidv4()); // Generate UUID
-  sessionParams.push(getCurrentTime()); // First seen
-  sessionParams.push(getCurrentTime()); // Last seen
+  sessionParams.push(getCurrentTime().toString()); // First seen
+  sessionParams.push(getCurrentTime().toString()); // Last seen
   sessionParams.push("1"); // Session page counter
   sessionParams.push(referralURL); // First referral URL
   if (currentURL.search.length > 0) {
@@ -63,13 +76,12 @@ function createNewSession() {
     sessionParams.push("");
   }
 
-  const sessionInfo = sessionParams.join("|");
-  return sessionInfo;
+  return sessionParams.join("|");
 }
 
 function updateSession(currentSession: string, updatepage = true) {
   const sessionParams = getSessionObj(currentSession);
-  sessionParams["last_seen"] = getCurrentTime() as string; // Update last-seen
+  sessionParams["last_seen"] = getCurrentTime().toString(); // Update last-seen
   const currentURL = new URL(document.location.href);
   let referralURL;
   if (window.location !== window.parent.location) {
@@ -119,12 +131,8 @@ function checkSessionLength(session: string) {
   return session;
 }
 
-function getCurrentTime(string = true) {
-  if (string) {
-    return Math.round(Date.now() / 1000).toString();
-  } else {
-    return Math.round(Date.now() / 1000);
-  }
+function getCurrentTime() {
+  return Math.round(Date.now() / 1000);
 }
 
 function getSessionObj(session: string) {
@@ -169,10 +177,11 @@ function debugSession(session: string) {
     console.log("[page session]", sessionObj);
   }
 
-  if (document.querySelector("[name='transaction.comments']") !== null) {
-    const commentsField = document.querySelector(
-      "[name='transaction.comments']"
-    ) as HTMLInputElement | HTMLTextAreaElement;
+  const commentsField = document.querySelector(
+    "[name='transaction.comments']"
+  ) as HTMLInputElement | HTMLTextAreaElement | null;
+
+  if (commentsField) {
     console.log("[Additional Comments Field]\n", commentsField.value);
   }
 }
@@ -185,59 +194,56 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
   let enMergeTag = "";
 
   // Fetch and decode session attribution data
-  let enSessionParam = urlParams.get("engrid_session");
-  if (enSessionParam) {
-    enSessionParam = window.atob(enSessionParam);
-    console.log(enSessionParam);
-  } else {
-    enSessionParam = "";
+  const encodedSessionParam = urlParams.get("engrid_session");
+  let enSessionParam;
+  if (encodedSessionParam) {
+    enSessionParam = window.atob(encodedSessionParam);
   }
 
   let enCookie = getCookie("engrid_attribution_memory_cookie");
   if (enCookie) {
     enCookie = window.atob(enCookie);
-  } else {
-    enCookie = "";
   }
 
   const supporterTag = getScriptData("additional_comments");
-  const memAttribute: HTMLInputElement | null = document.querySelector(
-    `[name="${supporterTag}"]`
-  );
+  const additionalCommentsField: HTMLInputElement | HTMLTextAreaElement | null =
+    document.querySelector(`[name='${supporterTag}']`);
+  const memAttribute: string | null = window.additionalCommentsTag;
 
   if (memAttribute) {
-    enMergeTag = memAttribute.value;
-  } else {
-    enMergeTag = "";
+    enMergeTag = memAttribute;
   }
 
-  if (enMergeTag === "" && enCookie === "" && enSessionParam === "") {
+  if (
+    enMergeTag == undefined &&
+    enCookie == undefined &&
+    enSessionParam == undefined
+  ) {
     currentSession = "";
   } else {
     // Get the most recent session info
-    const cookieLastSeen = isNaN(parseInt(getSessionObj(enCookie)["last_seen"]))
-      ? 0
-      : parseInt(getSessionObj(enCookie)["last_seen"]);
-    const mergeTagLastSeen = isNaN(
-      parseInt(getSessionObj(enMergeTag)["last_seen"])
-    )
-      ? 0
-      : parseInt(getSessionObj(enMergeTag)["last_seen"]);
-    const paramLastSeen = isNaN(
-      parseInt(getSessionObj(enSessionParam)["last_seen"])
-    )
-      ? 0
-      : parseInt(getSessionObj(enSessionParam)["last_seen"]);
+    const cookieLastSeen =
+      enCookie === "" ? 0 : parseInt(getSessionObj(enCookie)["last_seen"]);
+    const mergeTagLastSeen =
+      enSessionParam === undefined
+        ? 0
+        : parseInt(getSessionObj(enMergeTag)["last_seen"]);
+    const paramLastSeen =
+      enSessionParam === undefined
+        ? 0
+        : parseInt(getSessionObj(enSessionParam)["last_seen"]);
 
     currentSession = mergeTagLastSeen <= cookieLastSeen ? enCookie : enMergeTag;
 
     const currentSessionLastSeen =
       parseInt(getSessionObj(currentSession)["last_seen"]) ?? 0;
     currentSession =
-      currentSessionLastSeen <= paramLastSeen ? enSessionParam : currentSession;
+      enSessionParam === undefined || paramLastSeen <= currentSessionLastSeen
+        ? currentSession
+        : enSessionParam;
   }
 
-  if (enSessionParam !== "") {
+  if (enSessionParam !== undefined) {
     currentSession = enSessionParam;
   }
 
@@ -249,7 +255,7 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
 
   if (
     currentSession === "" ||
-    (getCurrentTime(NUMBER) as number) - parseInt(oldSessionObj["last_seen"]) >=
+    (getCurrentTime() as number) - parseInt(oldSessionObj["last_seen"]) >=
       parseInt(sessionLength)
   ) {
     newSession = true;
@@ -270,11 +276,12 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
 
     setCookie("engrid_attribution_memory_cookie", encodedSession);
 
-    document.querySelectorAll("a").forEach((item) => {
-      item.addEventListener("click", (event) => {
-        if (/\/page\/[0-9]{5,6}\//.test(item.href)) {
+    document.addEventListener("click", (event) => {
+      const eventTarget = event.target as HTMLAnchorElement;
+      if (eventTarget && eventTarget.tagName === "A") {
+        if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
           event.preventDefault();
-          const clickedURL = new URL(item.href);
+          const clickedURL = new URL(eventTarget.href);
 
           if (encodedSession === "") {
             window.location.href = clickedURL.href;
@@ -283,7 +290,7 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
             window.location.href = clickedURL.href;
           }
         }
-      });
+      }
     });
   } else {
     if (newSession) {
@@ -303,16 +310,16 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
       return;
     } else {
       setCookie("engrid_attribution_memory_cookie", encodedSession);
-      if (memAttribute) {
-        memAttribute.value =
-          "Parameter tracking: " +
-          JSON.stringify(getSessionObj(currentSession), null, "\n");
+      if (additionalCommentsField) {
+        additionalCommentsField.value = JSON.stringify(
+          getSessionObj(currentSession)
+        );
       }
     }
 
     // Populate "Additional Comments" field
     const additionalComments: HTMLTextAreaElement | null =
-      document.querySelector("[name='transaction.comments'");
+      document.querySelector("[name='transaction.comments]'");
 
     if (!additionalComments) {
       // Create Additional Comments field
@@ -323,7 +330,7 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
       newField.setAttribute("name", "transaction.comments");
 
       const sessionObjStr =
-        "Parameter tracking:" +
+        "Parameter tracking: " +
         JSON.stringify(getSessionObj(currentSession), null, "\n");
       newField.value = sessionObjStr;
 
@@ -331,7 +338,14 @@ function sessionAttribution(updatepage = true, mirroredSession = "") {
     }
   }
 
-  debugSession(currentSession);
+  const parentURL = new URL(document.location.href);
+
+  if (
+    window.location === window.parent.location &&
+    parentURL.searchParams.get("debug") === "true"
+  ) {
+    debugSession(currentSession);
+  }
 
   return currentSession;
 }
@@ -359,11 +373,11 @@ window.addEventListener("visibilitychange", () => {
     window.location === window.parent.location &&
     document.visibilityState === "visible"
   ) {
-    const UPDATEPAGE = false;
-    sessionAttribution(UPDATEPAGE);
+    const SAMEPAGE = false;
+    sessionAttribution(SAMEPAGE);
 
     updateTime = setInterval(() => {
-      sessionAttribution(UPDATEPAGE);
+      sessionAttribution(SAMEPAGE);
     }, 60000);
   } else {
     clearInterval(updateTime);
@@ -379,9 +393,10 @@ window.addEventListener("message", function (event) {
     sessionAttribution(false, event.data);
   } else if (
     window.location === window.parent.location &&
-    parentSession &&
     event.data === "Mirror session"
   ) {
+    const SAMEPAGE = false;
+    parentSession = sessionAttribution(SAMEPAGE);
     this.document
       .querySelector("iframe")
       ?.contentWindow?.postMessage(parentSession, "*");
