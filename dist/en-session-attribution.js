@@ -1,1 +1,680 @@
-(()=>{"use strict";var e,n=new Uint8Array(16);function t(){if(!e&&!(e="undefined"!=typeof crypto&&crypto.getRandomValues&&crypto.getRandomValues.bind(crypto)||"undefined"!=typeof msCrypto&&"function"==typeof msCrypto.getRandomValues&&msCrypto.getRandomValues.bind(msCrypto)))throw new Error("crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported");return e(n)}const o=/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i,r=function(e){return"string"==typeof e&&o.test(e)};for(var i=[],s=0;s<256;++s)i.push((s+256).toString(16).substr(1));const a=function(e,n,o){var s=(e=e||{}).random||(e.rng||t)();if(s[6]=15&s[6]|64,s[8]=63&s[8]|128,n){o=o||0;for(var a=0;a<16;++a)n[o+a]=s[a];return n}return function(e){var n=arguments.length>1&&void 0!==arguments[1]?arguments[1]:0,t=(i[e[n+0]]+i[e[n+1]]+i[e[n+2]]+i[e[n+3]]+"-"+i[e[n+4]]+i[e[n+5]]+"-"+i[e[n+6]]+i[e[n+7]]+"-"+i[e[n+8]]+i[e[n+9]]+"-"+i[e[n+10]]+i[e[n+11]]+i[e[n+12]]+i[e[n+13]]+i[e[n+14]]+i[e[n+15]]).toLowerCase();if(!r(t))throw TypeError("Stringified UUID is invalid");return t}(s)};function c(e,n,t=d("expiration","3600")){const o=new Date,r=1e3*parseInt(t)+o.getTime();o.setTime(r);const i=`${e}=${n};expires=${o.toUTCString()};path=/`;return document.cookie=i,i}function d(e,n=""){const t=document.querySelector("script[src*='attribution.js']");if(t){const o=t.getAttribute("session-"+e);return null!=o?o:n}return n}function l(){const e=[],n=new URL(document.location.href);let t;return window.location!==window.parent.location?t=document.referrer:(t=""===document.referrer?"direct":document.referrer,"direct"!==t&&(t=new URL(t).hostname)),n.searchParams.delete("engrid_session"),e.push(a()),e.push(p().toString()),e.push(p().toString()),e.push("1"),e.push(t),n.search.length>0?e.push(n.search.slice(1)):e.push(""),e.join("|")}function u(e,n=!0){const t=m(e);t.last_seen=p().toString();const o=new URL(document.location.href);let r;return window.location!==window.parent.location?r=document.location.href:(r=""===document.referrer?"direct":document.referrer,"direct"!==r&&(r=new URL(r).hostname)),n&&(t.page_count=(parseInt(t.page_count)+1).toString()),o.searchParams.delete("engrid_session"),t.current_referral=r,t.current_referral_params=o.search.length>0?o.search.slice(1):"",Object.values(t).join("|")}function w(e){let n=window.atob(e);if(e.length>1500&&n.split("|").length>6){const t=m(n);delete t.current_referral,delete t.current_referral_params,n=Object.values(t).join("|"),e=window.btoa(n)}return e.length>1500?"":e}function p(){return Math.round(Date.now()/1e3)}function m(e){if(-1===e.indexOf("Parameter")){const n=e.split("|"),t={};return t.uuid=n[0],t.first_seen=n[1],t.last_seen=n[2],t.page_count=n[3],t.first_referral=n[4],t.first_referral_params=n[5],n[6]&&(t.current_referral=n[6]),n[7]&&(t.current_referral_params=n[7]),t}{const n=e.slice(e.indexOf("{"));return JSON.parse(n)}}function f(e=!0,n=""){var t,o;const r=window.location.search;let i="",s="";const a=new URLSearchParams(r).get("engrid_session");let f;a&&(f=window.atob(a));let g=function(e){const n=document.cookie.split("; "),t=[],o=[];return n.forEach((e=>{const n=e.split("=");t.push(n[0]),o.push(n[1])})),t.includes(e)?o[t.indexOf(e)]:""}("engrid_attribution_memory_cookie");g&&(g=window.atob(g));const h=d("additional_comments"),_=document.querySelector(`[name='${h}']`),v=window.additionalCommentsTag;if(v&&(s=v),null==s&&null==g&&null==f)i="";else{const e=""===g?0:parseInt(m(g).last_seen),n=void 0===f?0:parseInt(m(s).last_seen),o=void 0===f?0:parseInt(m(f).last_seen);i=n<=e?g:s;const r=null!==(t=parseInt(m(i).last_seen))&&void 0!==t?t:0;i=void 0===f||o<=r?i:f}void 0!==f&&(i=f);const y=d("expiration","3600");let b;const S=m(i);if(b=""===i||p()-parseInt(S.last_seen)>=parseInt(y),"pageJson"in window){i=b?l():u(i,e),window.location!==window.parent.location&&""!==n&&(i=n);let t=window.btoa(i);if(t=w(t),""===t)return;if(c("engrid_attribution_memory_cookie",t),_&&(_.value=JSON.stringify(m(i))),!document.querySelector("[name='transaction.comments]'")){const e=document.createElement("input");e.classList.add("en__field__input"),e.classList.add("en__field__input--hidden"),e.setAttribute("type","hidden"),e.setAttribute("name","transaction.comments");const n="Parameter tracking: "+JSON.stringify(m(i),null,"\n");e.value=n,null===(o=document.querySelector("form.en__component"))||void 0===o||o.appendChild(e)}}else{i=b?l():u(i,e);let n=window.btoa(i);n=w(n),c("engrid_attribution_memory_cookie",n),document.addEventListener("click",(e=>{const t=e.target;if(t&&"A"===t.tagName&&/\/page\/[0-9]{5,6}\//.test(t.href)){e.preventDefault();const o=new URL(t.href);""===n||o.searchParams.set("engrid_session",n),window.location.href=o.href}}))}const L=new URL(document.location.href);return window.location===window.parent.location&&"true"===L.searchParams.get("debug")&&function(e){const n=document.querySelector(".currentSession");n&&(n.innerHTML="Current session: "+e);const t=m(e);window.location!==window.parent.location?console.log("[iframe session]",t):console.log("[page session]",t);const o=document.querySelector("[name='transaction.comments']");o&&console.log("[Additional Comments Field]\n",o.value)}(i),i}let g,h;window.addEventListener("load",(()=>{window.location===window.parent.location?(h=f(),g=setInterval((()=>{h=f(!1)}),6e4)):setTimeout((()=>{window.parent.postMessage("Mirror session","*")}),1e3)})),window.addEventListener("visibilitychange",(()=>{if(window.location===window.parent.location&&"visible"===document.visibilityState){const e=!1;f(e),g=setInterval((()=>{f(e)}),6e4)}else clearInterval(g)})),window.addEventListener("message",(function(e){var n,t;window.location!==window.parent.location&&"Mirror session"!==e.data?f(!1,e.data):window.location===window.parent.location&&"Mirror session"===e.data&&(h=f(!1),null===(t=null===(n=this.document.querySelector("iframe"))||void 0===n?void 0:n.contentWindow)||void 0===t||t.postMessage(h,"*"))})),document.addEventListener("click",(()=>{window.location!==window.parent.location&&window.parent.postMessage("Mirror session","*")}))})();
+/******/ (() => { // webpackBootstrap
+/******/ 	"use strict";
+/******/ 	var __webpack_modules__ = ({
+
+/***/ "./src/CrossDomainStorage.ts":
+/*!***********************************!*\
+  !*** ./src/CrossDomainStorage.ts ***!
+  \***********************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "CrossDomainStorage": () => (/* binding */ CrossDomainStorage)
+/* harmony export */ });
+class CrossDomainStorage {
+    constructor(origin, path) {
+        this.origin = origin;
+        this.path = path;
+        this.iframe = null;
+        this.iframeReady = false;
+        this.queue = [];
+        this.requests = {};
+        this.id = 0;
+    }
+    init() {
+        if (!this.iframe) {
+            if (window.JSON && window.localStorage) {
+                this.iframe = document.createElement("iframe");
+                this.iframe.style.cssText =
+                    "position:absolute;width:1px;height:1px;left:-9999px;";
+                document.body.appendChild(this.iframe);
+                if (window.addEventListener) {
+                    this.iframe.addEventListener("load", () => {
+                        this._iframeLoaded();
+                    }, false);
+                    window.addEventListener("message", (event) => {
+                        this._handleMessage(event);
+                    }, false);
+                }
+            }
+            else {
+                throw new Error("Unsupported browser.");
+            }
+        }
+        this.iframe.src = this.origin + this.path;
+    }
+    storeValue(key, value, callback) {
+        this._processRequest({
+            key: key,
+            value: value,
+            id: ++this.id,
+            operation: "write",
+        }, callback);
+    }
+    requestValue(key, callback) {
+        this._processRequest({ key: key, id: ++this.id, operation: "read" }, callback);
+    }
+    _processRequest(request, callback) {
+        const data = {
+            request: request,
+            callback: callback,
+        };
+        if (this.iframeReady) {
+            this._sendRequest(data);
+        }
+        else {
+            this.queue.push(data);
+        }
+        if (!this.iframe) {
+            this.init();
+        }
+    }
+    _sendRequest(data) {
+        this.requests[data.request.id] = data;
+        this.iframe.contentWindow.postMessage(JSON.stringify(data.request), this.origin);
+    }
+    _iframeLoaded() {
+        this.iframeReady = true;
+        if (this.queue.length) {
+            for (let i = 0, len = this.queue.length; i < len; i++) {
+                this._sendRequest(this.queue[i]);
+            }
+            this.queue = [];
+        }
+    }
+    _handleMessage(event) {
+        if (event.origin === this.origin) {
+            const d = JSON.parse(event.data);
+            if (this.requests[d.id]) {
+                if (typeof this.requests[d.id].callback === "function") {
+                    this.requests[d.id].callback(d);
+                }
+            }
+            delete this.requests[d.id];
+        }
+    }
+}
+
+
+/***/ }),
+
+/***/ "./node_modules/uuid/dist/esm-browser/regex.js":
+/*!*****************************************************!*\
+  !*** ./node_modules/uuid/dist/esm-browser/regex.js ***!
+  \*****************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|00000000-0000-0000-0000-000000000000)$/i);
+
+/***/ }),
+
+/***/ "./node_modules/uuid/dist/esm-browser/rng.js":
+/*!***************************************************!*\
+  !*** ./node_modules/uuid/dist/esm-browser/rng.js ***!
+  \***************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (/* binding */ rng)
+/* harmony export */ });
+// Unique ID creation requires a high quality random # generator. In the browser we therefore
+// require the crypto API and do not support built-in fallback to lower quality random number
+// generators (like Math.random()).
+var getRandomValues;
+var rnds8 = new Uint8Array(16);
+function rng() {
+  // lazy load so that environments that need to polyfill have a chance to do so
+  if (!getRandomValues) {
+    // getRandomValues needs to be invoked in a context where "this" is a Crypto implementation. Also,
+    // find the complete implementation of crypto (msCrypto) on IE11.
+    getRandomValues = typeof crypto !== 'undefined' && crypto.getRandomValues && crypto.getRandomValues.bind(crypto) || typeof msCrypto !== 'undefined' && typeof msCrypto.getRandomValues === 'function' && msCrypto.getRandomValues.bind(msCrypto);
+
+    if (!getRandomValues) {
+      throw new Error('crypto.getRandomValues() not supported. See https://github.com/uuidjs/uuid#getrandomvalues-not-supported');
+    }
+  }
+
+  return getRandomValues(rnds8);
+}
+
+/***/ }),
+
+/***/ "./node_modules/uuid/dist/esm-browser/stringify.js":
+/*!*********************************************************!*\
+  !*** ./node_modules/uuid/dist/esm-browser/stringify.js ***!
+  \*********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _validate_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./validate.js */ "./node_modules/uuid/dist/esm-browser/validate.js");
+
+/**
+ * Convert array of 16 byte values to UUID string format of the form:
+ * XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX
+ */
+
+var byteToHex = [];
+
+for (var i = 0; i < 256; ++i) {
+  byteToHex.push((i + 0x100).toString(16).substr(1));
+}
+
+function stringify(arr) {
+  var offset = arguments.length > 1 && arguments[1] !== undefined ? arguments[1] : 0;
+  // Note: Be careful editing this code!  It's been tuned for performance
+  // and works in ways you may not expect. See https://github.com/uuidjs/uuid/pull/434
+  var uuid = (byteToHex[arr[offset + 0]] + byteToHex[arr[offset + 1]] + byteToHex[arr[offset + 2]] + byteToHex[arr[offset + 3]] + '-' + byteToHex[arr[offset + 4]] + byteToHex[arr[offset + 5]] + '-' + byteToHex[arr[offset + 6]] + byteToHex[arr[offset + 7]] + '-' + byteToHex[arr[offset + 8]] + byteToHex[arr[offset + 9]] + '-' + byteToHex[arr[offset + 10]] + byteToHex[arr[offset + 11]] + byteToHex[arr[offset + 12]] + byteToHex[arr[offset + 13]] + byteToHex[arr[offset + 14]] + byteToHex[arr[offset + 15]]).toLowerCase(); // Consistency check for valid UUID.  If this throws, it's likely due to one
+  // of the following:
+  // - One or more input array values don't map to a hex octet (leading to
+  // "undefined" in the uuid)
+  // - Invalid input values for the RFC `version` or `variant` fields
+
+  if (!(0,_validate_js__WEBPACK_IMPORTED_MODULE_0__["default"])(uuid)) {
+    throw TypeError('Stringified UUID is invalid');
+  }
+
+  return uuid;
+}
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (stringify);
+
+/***/ }),
+
+/***/ "./node_modules/uuid/dist/esm-browser/v4.js":
+/*!**************************************************!*\
+  !*** ./node_modules/uuid/dist/esm-browser/v4.js ***!
+  \**************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _rng_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./rng.js */ "./node_modules/uuid/dist/esm-browser/rng.js");
+/* harmony import */ var _stringify_js__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! ./stringify.js */ "./node_modules/uuid/dist/esm-browser/stringify.js");
+
+
+
+function v4(options, buf, offset) {
+  options = options || {};
+  var rnds = options.random || (options.rng || _rng_js__WEBPACK_IMPORTED_MODULE_0__["default"])(); // Per 4.4, set bits for version and `clock_seq_hi_and_reserved`
+
+  rnds[6] = rnds[6] & 0x0f | 0x40;
+  rnds[8] = rnds[8] & 0x3f | 0x80; // Copy bytes to buffer, if provided
+
+  if (buf) {
+    offset = offset || 0;
+
+    for (var i = 0; i < 16; ++i) {
+      buf[offset + i] = rnds[i];
+    }
+
+    return buf;
+  }
+
+  return (0,_stringify_js__WEBPACK_IMPORTED_MODULE_1__["default"])(rnds);
+}
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (v4);
+
+/***/ }),
+
+/***/ "./node_modules/uuid/dist/esm-browser/validate.js":
+/*!********************************************************!*\
+  !*** ./node_modules/uuid/dist/esm-browser/validate.js ***!
+  \********************************************************/
+/***/ ((__unused_webpack_module, __webpack_exports__, __webpack_require__) => {
+
+/* harmony export */ __webpack_require__.d(__webpack_exports__, {
+/* harmony export */   "default": () => (__WEBPACK_DEFAULT_EXPORT__)
+/* harmony export */ });
+/* harmony import */ var _regex_js__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./regex.js */ "./node_modules/uuid/dist/esm-browser/regex.js");
+
+
+function validate(uuid) {
+  return typeof uuid === 'string' && _regex_js__WEBPACK_IMPORTED_MODULE_0__["default"].test(uuid);
+}
+
+/* harmony default export */ const __WEBPACK_DEFAULT_EXPORT__ = (validate);
+
+/***/ })
+
+/******/ 	});
+/************************************************************************/
+/******/ 	// The module cache
+/******/ 	var __webpack_module_cache__ = {};
+/******/ 	
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/ 		// Check if module is in cache
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = __webpack_module_cache__[moduleId] = {
+/******/ 			// no module.id needed
+/******/ 			// no module.loaded needed
+/******/ 			exports: {}
+/******/ 		};
+/******/ 	
+/******/ 		// Execute the module function
+/******/ 		__webpack_modules__[moduleId](module, module.exports, __webpack_require__);
+/******/ 	
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/ 	
+/************************************************************************/
+/******/ 	/* webpack/runtime/define property getters */
+/******/ 	(() => {
+/******/ 		// define getter functions for harmony exports
+/******/ 		__webpack_require__.d = (exports, definition) => {
+/******/ 			for(var key in definition) {
+/******/ 				if(__webpack_require__.o(definition, key) && !__webpack_require__.o(exports, key)) {
+/******/ 					Object.defineProperty(exports, key, { enumerable: true, get: definition[key] });
+/******/ 				}
+/******/ 			}
+/******/ 		};
+/******/ 	})();
+/******/ 	
+/******/ 	/* webpack/runtime/hasOwnProperty shorthand */
+/******/ 	(() => {
+/******/ 		__webpack_require__.o = (obj, prop) => (Object.prototype.hasOwnProperty.call(obj, prop))
+/******/ 	})();
+/******/ 	
+/************************************************************************/
+var __webpack_exports__ = {};
+// This entry need to be wrapped in an IIFE because it need to be isolated against other modules in the chunk.
+(() => {
+/*!***************************************!*\
+  !*** ./src/en-session-attribution.ts ***!
+  \***************************************/
+/* harmony import */ var uuid__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(/*! uuid */ "./node_modules/uuid/dist/esm-browser/v4.js");
+/* harmony import */ var _CrossDomainStorage__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(/*! ./CrossDomainStorage */ "./src/CrossDomainStorage.ts");
+
+
+function getCookie(cookie) {
+    const cookies = document.cookie;
+    const cookiesArr = cookies.split('; ');
+    const cookieNames = [];
+    const cookieVals = [];
+    cookiesArr.forEach((element) => {
+        const elementArr = element.split('=');
+        cookieNames.push(elementArr[0]);
+        cookieVals.push(elementArr[1]);
+    });
+    if (cookieNames.includes(cookie)) {
+        return cookieVals[cookieNames.indexOf(cookie)];
+    }
+    return '';
+}
+function setCookie(cookieName, cookieVal, expiration = getScriptData('expiration', '3600')) {
+    const now = new Date();
+    const expirationTime = parseInt(expiration) * 1000 + now.getTime();
+    now.setTime(expirationTime);
+    const newCookie = `${cookieName}=${cookieVal};expires=${now.toUTCString()};path=/`;
+    document.cookie = newCookie;
+    return cookieName;
+}
+function getScriptData(attribute, defaultValue = '') {
+    const scriptTag = document.querySelector("script[src*='attribution.js']");
+    if (scriptTag) {
+        const data = scriptTag.getAttribute('session-' + attribute);
+        return data !== null && data !== void 0 ? data : defaultValue;
+    }
+    return defaultValue;
+}
+function createNewSession() {
+    const sessionParams = [];
+    const currentURL = new URL(document.location.href);
+    let referralURL;
+    if (window.location !== window.parent.location) {
+        referralURL = document.referrer;
+    }
+    else {
+        referralURL = document.referrer === '' ? 'direct' : document.referrer;
+        if (referralURL !== 'direct') {
+            const tempURL = new URL(referralURL);
+            referralURL = tempURL.hostname;
+        }
+    }
+    currentURL.searchParams.delete('engrid_session');
+    sessionParams.push((0,uuid__WEBPACK_IMPORTED_MODULE_1__["default"])()); // Generate UUID
+    sessionParams.push(getCurrentTime().toString()); // First seen
+    sessionParams.push(getCurrentTime().toString()); // Last seen
+    sessionParams.push('1'); // Session page counter
+    sessionParams.push(referralURL); // First referral URL
+    if (currentURL.search.length > 0) {
+        sessionParams.push(currentURL.search.slice(1)); // First referral parameters
+    }
+    else {
+        sessionParams.push('');
+    }
+    return sessionParams.join('|');
+}
+function updateSession(currentSession, updatepage = true) {
+    const sessionParams = getSessionObj(currentSession);
+    sessionParams['last_seen'] = getCurrentTime().toString(); // Update last-seen
+    const currentURL = new URL(document.location.href);
+    let referralURL;
+    if (window.location !== window.parent.location) {
+        referralURL = document.location.href;
+    }
+    else {
+        referralURL = document.referrer === '' ? 'direct' : document.referrer;
+        if (referralURL !== 'direct') {
+            const tempURL = new URL(referralURL);
+            referralURL = tempURL.hostname;
+        }
+    }
+    if (updatepage) {
+        sessionParams['page_count'] = (parseInt(sessionParams['page_count']) + 1).toString(); // Update session page counter
+    }
+    currentURL.searchParams.delete('engrid_session');
+    // Update current referral URL
+    sessionParams['current_referral'] = referralURL;
+    sessionParams['current_referral_params'] =
+        currentURL.search.length > 0 ? currentURL.search.slice(1) : '';
+    return Object.values(sessionParams).join('|');
+}
+function checkSessionLength(session) {
+    let decodedSession = window.atob(session);
+    if (session.length > 1500 && decodedSession.split('|').length > 6) {
+        //const sessionParams = decodedSession.split("|");
+        const sessionParams = getSessionObj(decodedSession);
+        delete sessionParams['current_referral'];
+        delete sessionParams['current_referral_params'];
+        decodedSession = Object.values(sessionParams).join('|');
+        session = window.btoa(decodedSession);
+    }
+    // Check session length after removing latest referral URL info
+    if (session.length > 1500) {
+        return '';
+    }
+    return session;
+}
+function getCurrentTime() {
+    return Math.round(Date.now() / 1000);
+}
+function getSessionObj(session) {
+    if (session.indexOf('Parameter') === -1) {
+        const sessionArr = session.split('|');
+        const sessionObj = {};
+        sessionObj['uuid'] = sessionArr[0];
+        sessionObj['first_seen'] = sessionArr[1];
+        sessionObj['last_seen'] = sessionArr[2];
+        sessionObj['page_count'] = sessionArr[3];
+        sessionObj['first_referral'] = sessionArr[4];
+        sessionObj['first_referral_params'] = sessionArr[5];
+        if (sessionArr[6]) {
+            sessionObj['current_referral'] = sessionArr[6];
+        }
+        if (sessionArr[7]) {
+            sessionObj['current_referral_params'] = sessionArr[7];
+        }
+        return sessionObj;
+    }
+    else {
+        const JSONstring = session.slice(session.indexOf('{'));
+        const sessionObj = JSON.parse(JSONstring);
+        return sessionObj;
+    }
+}
+function debugSession(session) {
+    const currentSesh = document.querySelector('.currentSession');
+    if (currentSesh) {
+        currentSesh.innerHTML = 'Current session: ' + session;
+    }
+    const sessionObj = getSessionObj(session);
+    if (window.location !== window.parent.location) {
+        console.log('[iframe session]', sessionObj);
+    }
+    else {
+        console.log('[page session]', sessionObj);
+    }
+    const commentsField = document.querySelector("[name='transaction.comments']");
+    if (commentsField) {
+        //prettier-ignore
+        console.log("[Additional Comments Field]\n", commentsField.value);
+    }
+}
+function sessionAttribution(updatepage = true, mirroredSession = '') {
+    var _a;
+    const iframeURL = getScriptData('iframe');
+    const iframeURLObj = new URL(iframeURL);
+    const crossDomain = new _CrossDomainStorage__WEBPACK_IMPORTED_MODULE_0__.CrossDomainStorage(iframeURLObj.origin, iframeURLObj.pathname);
+    const cookieIframe = document.querySelector('iframe');
+    if (cookieIframe === null || cookieIframe === void 0 ? void 0 : cookieIframe.src.includes('https://preserve.nature.org')) {
+        (_a = cookieIframe.parentElement) === null || _a === void 0 ? void 0 : _a.removeChild(cookieIframe);
+    }
+    crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
+        // Don't run iframe session until parent session data is mirrored
+        const queryStr = window.location.search;
+        const urlParams = new URLSearchParams(queryStr);
+        let currentSession = '';
+        let enMergeTag = '';
+        const allowSession = urlParams.get('session-attribution');
+        // Fetch and decode session attribution data
+        const encodedSessionParam = urlParams.get('engrid_session');
+        let enSessionParam;
+        if (encodedSessionParam) {
+            enSessionParam = window.atob(encodedSessionParam);
+        }
+        let enCookie = Object.prototype.hasOwnProperty.call(data, 'value')
+            ? data.value
+            : '';
+        if (enCookie) {
+            enCookie = enCookie.replace(/["]+/g, '');
+            enCookie = window.atob(enCookie);
+        }
+        const supporterTag = getScriptData('additional_comments');
+        const additionalCommentsField = document.querySelector(`[name='${supporterTag}']`);
+        const memAttribute = window.additionalCommentsTag;
+        if (memAttribute) {
+            enMergeTag = memAttribute;
+        }
+        if (enMergeTag == undefined &&
+            enCookie == '' &&
+            enSessionParam == undefined) {
+            currentSession = '';
+        }
+        else {
+            // Get the most recent session info
+            const tempArr = [];
+            let latestTime = 0;
+            let mostRecentIndex = -1;
+            if (enCookie && enCookie.includes('|')) {
+                tempArr.push(enCookie);
+            }
+            if (enMergeTag && enMergeTag.includes('|')) {
+                tempArr.push(enMergeTag);
+            }
+            if (enSessionParam && enSessionParam.includes('|')) {
+                tempArr.push(enSessionParam);
+            }
+            for (let i = 0; i < tempArr.length; ++i) {
+                if (parseInt(getSessionObj(tempArr[i])['last_seen']) > latestTime) {
+                    latestTime = parseInt(getSessionObj(tempArr[i])['last_seen']);
+                    mostRecentIndex = i;
+                }
+            }
+            currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
+        }
+        // Determine whether session should be continued or not
+        const sessionLength = getScriptData('expiration', '3600');
+        let newSession;
+        const NUMBER = false;
+        const oldSessionObj = getSessionObj(currentSession);
+        if (currentSession === '' ||
+            currentSession == '{user_data~Additional Comments Stand In}' ||
+            getCurrentTime() - parseInt(oldSessionObj['last_seen']) >=
+                parseInt(sessionLength)) {
+            newSession = true;
+        }
+        else {
+            newSession = false;
+        }
+        // Check if script is running outside Engaging Networks
+        if (!('pageJson' in window)) {
+            if (newSession) {
+                currentSession = createNewSession();
+            }
+            else {
+                currentSession = updateSession(currentSession, updatepage);
+            }
+            let encodedSession = window.btoa(currentSession);
+            encodedSession = checkSessionLength(encodedSession);
+            //setCookie("engrid_attribution_memory_cookie", encodedSession);
+            crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
+                return;
+            });
+            document.addEventListener('click', (event) => {
+                const eventTarget = event.target;
+                if (eventTarget && eventTarget.tagName === 'A') {
+                    if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
+                        event.preventDefault();
+                        const clickedURL = new URL(eventTarget.href);
+                        if (encodedSession === '') {
+                            window.location.href = clickedURL.href;
+                        }
+                        else {
+                            clickedURL.searchParams.set('engrid_session', encodedSession);
+                            window.location.href = clickedURL.href;
+                        }
+                    }
+                }
+            });
+        }
+        else {
+            const submitBtn = document.querySelector('.en__submit');
+            const enForm = document.querySelector('form.en__component');
+            const standInField = document.createElement('input');
+            const standInExists = document.querySelector(`[name='${supporterTag}']`);
+            standInField.setAttribute('name', supporterTag);
+            standInField.classList.add('en__field__input');
+            standInField.setAttribute('type', 'hidden');
+            if (!standInExists) {
+                enForm === null || enForm === void 0 ? void 0 : enForm.appendChild(standInField);
+            }
+            if (newSession) {
+                currentSession = createNewSession();
+            }
+            else {
+                currentSession = updateSession(currentSession, updatepage);
+            }
+            if (window.location !== window.parent.location &&
+                mirroredSession !== '') {
+                currentSession = mirroredSession;
+            }
+            let encodedSession = window.btoa(currentSession);
+            encodedSession = checkSessionLength(encodedSession);
+            if (allowSession != 'false') {
+                if (!additionalCommentsField) {
+                    standInField.value = JSON.stringify(getSessionObj(currentSession)).replace(/"/g, "'");
+                }
+                else {
+                    additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                }
+            }
+            if (encodedSession === '') {
+                return;
+            }
+            else {
+                //setCookie("engrid_attribution_memory_cookie", encodedSession);
+                crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
+                    return;
+                });
+                if (additionalCommentsField && allowSession != 'false') {
+                    additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                }
+            }
+            // Populate "Additional Comments" field
+            const additionalComments = document.querySelector("[name='transaction.comments']");
+            if (!additionalComments) {
+                // Create Additional Comments field
+                const newField = document.createElement('input');
+                newField.classList.add('en__field__input');
+                newField.classList.add('en__field__input--hidden');
+                newField.setAttribute('type', 'hidden');
+                newField.setAttribute('name', 'transaction.comments');
+                const sessionObjStr = 'Parameter tracking: ' +
+                    //prettier-ignore
+                    JSON.stringify(getSessionObj(currentSession), null, "\n").replace(/"/g, "'");
+                newField.value = allowSession != 'false' ? sessionObjStr : '';
+                if (enForm) {
+                    enForm.appendChild(newField);
+                }
+            }
+        }
+        const parentURL = new URL(document.location.href);
+        if (window.location === window.parent.location &&
+            parentURL.searchParams.get('debug') === 'true') {
+            debugSession(currentSession);
+        }
+        window.parentSession = currentSession;
+        return;
+    });
+}
+let updateTime;
+let parentSession;
+// Save session data on page load
+window.addEventListener('load', () => {
+    if (window.location === window.parent.location) {
+        sessionAttribution();
+        parentSession = window.parentSession;
+        updateTime = setInterval(() => {
+            sessionAttribution(false);
+            parentSession = window.parentSession;
+        }, 60000);
+    }
+    else {
+        setTimeout(() => {
+            window.parent.postMessage('Mirror session', '*');
+        }, 1000);
+    }
+});
+// Save session data when tab is in focus
+window.addEventListener('visibilitychange', () => {
+    if (window.location === window.parent.location &&
+        document.visibilityState === 'visible') {
+        const SAMEPAGE = false;
+        sessionAttribution(SAMEPAGE);
+        updateTime = setInterval(() => {
+            sessionAttribution(SAMEPAGE);
+        }, 60000);
+    }
+    else {
+        clearInterval(updateTime);
+    }
+});
+// Pass messages between iframe and parent window
+window.addEventListener('message', function (event) {
+    var _a, _b;
+    if (window.location !== window.parent.location &&
+        event.data !== 'Mirror session') {
+        sessionAttribution(false, event.data);
+    }
+    else if (window.location === window.parent.location &&
+        event.data === 'Mirror session') {
+        const SAMEPAGE = false;
+        sessionAttribution(SAMEPAGE);
+        parentSession = window.parentSession;
+        (_b = (_a = this.document
+            .querySelector('iframe')) === null || _a === void 0 ? void 0 : _a.contentWindow) === null || _b === void 0 ? void 0 : _b.postMessage(parentSession, '*');
+    }
+});
+document.addEventListener('click', () => {
+    if (window.location !== window.parent.location) {
+        window.parent.postMessage('Mirror session', '*');
+    }
+});
+
+})();
+
+/******/ })()
+;

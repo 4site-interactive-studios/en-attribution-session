@@ -52,7 +52,7 @@ module.exports = {
    * singleQuote: <bool>
    * default: false
    */
-  singleQuote: false,
+  singleQuote: true,
 
   /**
    * Quote Props
