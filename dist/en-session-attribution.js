@@ -444,14 +444,16 @@ function debugSession(session) {
     }
 }
 function sessionAttribution(updatepage = true, mirroredSession = '') {
-    var _a;
     const iframeURL = getScriptData('iframe');
     const iframeURLObj = new URL(iframeURL);
     const crossDomain = new _CrossDomainStorage__WEBPACK_IMPORTED_MODULE_0__.CrossDomainStorage(iframeURLObj.origin, iframeURLObj.pathname);
-    const cookieIframe = document.querySelector('iframe');
-    if (cookieIframe === null || cookieIframe === void 0 ? void 0 : cookieIframe.src.includes('https://preserve.nature.org')) {
-        (_a = cookieIframe.parentElement) === null || _a === void 0 ? void 0 : _a.removeChild(cookieIframe);
-    }
+    const cookieIframe = document.querySelectorAll('iframe');
+    cookieIframe.forEach((item) => {
+        var _a;
+        if (item.src.includes(iframeURL)) {
+            (_a = item.parentElement) === null || _a === void 0 ? void 0 : _a.removeChild(item);
+        }
+    });
     crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
         // Don't run iframe session until parent session data is mirrored
         const queryStr = window.location.search;

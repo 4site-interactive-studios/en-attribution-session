@@ -199,11 +199,13 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
     iframeURLObj.pathname
   );
 
-  const cookieIframe = document.querySelector('iframe');
+  const cookieIframe = document.querySelectorAll('iframe');
 
-  if (cookieIframe?.src.includes('https://preserve.nature.org')) {
-    cookieIframe.parentElement?.removeChild(cookieIframe);
-  }
+  cookieIframe.forEach((item) => {
+    if (item.src.includes(iframeURL)) {
+      item.parentElement?.removeChild(item);
+    }
+  });
 
   crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
     // Don't run iframe session until parent session data is mirrored
