@@ -278,7 +278,7 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
     }
 
     // Determine whether session should be continued or not
-    const sessionLength = getScriptData('expiration', '3600');
+    const sessionLength = getScriptData('expiration', '900');
     let newSession: boolean;
     const NUMBER = false;
     const oldSessionObj = getSessionObj(currentSession);
@@ -377,17 +377,19 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
         return;
       } else {
         //setCookie("engrid_attribution_memory_cookie", encodedSession);
-        crossDomain.storeValue(
-          'engrid_attribution_memory_cookie',
-          encodedSession,
-          () => {
-            return;
-          }
-        );
-        if (additionalCommentsField && allowSession != 'false') {
-          additionalCommentsField.value = JSON.stringify(
-            getSessionObj(currentSession)
+        if (window.location == window.parent.location) {
+          crossDomain.storeValue(
+            'engrid_attribution_memory_cookie',
+            encodedSession,
+            () => {
+              return;
+            }
           );
+          if (additionalCommentsField && allowSession != 'false') {
+            additionalCommentsField.value = JSON.stringify(
+              getSessionObj(currentSession)
+            );
+          }
         }
       }
 
@@ -483,9 +485,19 @@ window.addEventListener('message', function (event) {
     const SAMEPAGE = false;
     sessionAttribution(SAMEPAGE);
     parentSession = window.parentSession;
-    this.document
-      .querySelector('iframe')
-      ?.contentWindow?.postMessage(parentSession, '*');
+    this.document.querySelectorAll('iframe').forEach((item) => {
+      if (
+        getComputedStyle(item).height == '1px' &&
+        this.getComputedStyle(item).width == '1px' &&
+        getComputedStyle(item).left == '-9999px'
+      ) {
+        return;
+      } else {
+        if (parentSession) {
+          item?.contentWindow?.postMessage(parentSession, '*');
+        }
+      }
+    });
   }
 });
 

@@ -508,7 +508,7 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
             currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
         }
         // Determine whether session should be continued or not
-        const sessionLength = getScriptData('expiration', '3600');
+        const sessionLength = getScriptData('expiration', '900');
         let newSession;
         const NUMBER = false;
         const oldSessionObj = getSessionObj(currentSession);
@@ -588,11 +588,13 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
             }
             else {
                 //setCookie("engrid_attribution_memory_cookie", encodedSession);
-                crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
-                    return;
-                });
-                if (additionalCommentsField && allowSession != 'false') {
-                    additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                if (window.location == window.parent.location) {
+                    crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
+                        return;
+                    });
+                    if (additionalCommentsField && allowSession != 'false') {
+                        additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                    }
                 }
             }
             // Populate "Additional Comments" field
@@ -656,7 +658,6 @@ window.addEventListener('visibilitychange', () => {
 });
 // Pass messages between iframe and parent window
 window.addEventListener('message', function (event) {
-    var _a, _b;
     if (window.location !== window.parent.location &&
         event.data !== 'Mirror session') {
         sessionAttribution(false, event.data);
@@ -666,8 +667,19 @@ window.addEventListener('message', function (event) {
         const SAMEPAGE = false;
         sessionAttribution(SAMEPAGE);
         parentSession = window.parentSession;
-        (_b = (_a = this.document
-            .querySelector('iframe')) === null || _a === void 0 ? void 0 : _a.contentWindow) === null || _b === void 0 ? void 0 : _b.postMessage(parentSession, '*');
+        this.document.querySelectorAll('iframe').forEach((item) => {
+            var _a;
+            if (getComputedStyle(item).height == '1px' &&
+                this.getComputedStyle(item).width == '1px' &&
+                getComputedStyle(item).left == '-9999px') {
+                return;
+            }
+            else {
+                if (parentSession) {
+                    (_a = item === null || item === void 0 ? void 0 : item.contentWindow) === null || _a === void 0 ? void 0 : _a.postMessage(parentSession, '*');
+                }
+            }
+        });
     }
 });
 document.addEventListener('click', () => {
