@@ -322,7 +322,7 @@ function setCookie(cookieName, cookieVal, expiration = getScriptData('expiration
     return cookieName;
 }
 function getScriptData(attribute, defaultValue = '') {
-    const scriptTag = document.querySelector("script[src*='attribution.js']");
+    const scriptTag = document.querySelector('script[src*="en-attribution-session.js"]');
     if (scriptTag) {
         const data = scriptTag.getAttribute('session-' + attribute);
         return data !== null && data !== void 0 ? data : defaultValue;
