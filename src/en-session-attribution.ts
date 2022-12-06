@@ -76,7 +76,15 @@ function createNewSession() {
   sessionParams.push('1'); // Session page counter
   sessionParams.push(referralURL); // First referral URL
   if (currentURL.search.length > 0) {
-    sessionParams.push(currentURL.search.slice(1)); // First referral parameters
+    let referralParamString = currentURL.search.slice(1);
+
+    // Remove hanging '=' symbols
+    referralParamString =
+      referralParamString[referralParamString.length - 1] == '='
+        ? referralParamString.slice(0, referralParamString.length - 1)
+        : referralParamString;
+    referralParamString = referralParamString.replace(/=&/g, '&');
+    sessionParams.push(referralParamString); // First referral parameters
   } else {
     sessionParams.push('');
   }
@@ -109,8 +117,17 @@ function updateSession(currentSession: string, updatepage = true) {
   // Update current referral URL
   sessionParams['current_referral'] = referralURL;
 
-  sessionParams['current_referral_params'] =
+  let referralParamString =
     currentURL.search.length > 0 ? currentURL.search.slice(1) : '';
+
+  // Remove hanging '=' symbols
+  referralParamString =
+    referralParamString[referralParamString.length - 1] == '='
+      ? referralParamString.slice(0, referralParamString.length - 1)
+      : referralParamString;
+  referralParamString = referralParamString.replace(/=&/g, '&');
+
+  sessionParams['current_referral_params'] = referralParamString;
 
   return Object.values(sessionParams).join('|');
 }
