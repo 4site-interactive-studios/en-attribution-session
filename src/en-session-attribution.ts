@@ -64,7 +64,7 @@ function createNewSession() {
     referralURL = document.referrer === '' ? 'direct' : document.referrer;
     if (referralURL !== 'direct') {
       const tempURL = new URL(referralURL);
-      referralURL = tempURL.hostname;
+      referralURL = tempURL.protocol + '//' + tempURL.hostname;
     }
   }
 
@@ -95,7 +95,7 @@ function updateSession(currentSession: string, updatepage = true) {
     referralURL = document.referrer === '' ? 'direct' : document.referrer;
     if (referralURL !== 'direct') {
       const tempURL = new URL(referralURL);
-      referralURL = tempURL.hostname;
+      referralURL = tempURL.protocol + '//' + tempURL.hostname;
     }
   }
 
