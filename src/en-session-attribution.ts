@@ -5,6 +5,7 @@ declare global {
   interface Window {
     additionalCommentsTag: string;
     parentSession: string;
+    attributionSession: () => string;
   }
 }
 
@@ -432,6 +433,9 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
       debugSession(currentSession);
     }
 
+    window.attributionSession = function () {
+      return getSessionObj(currentSession);
+    };
     window.parentSession = currentSession;
     return;
   });
