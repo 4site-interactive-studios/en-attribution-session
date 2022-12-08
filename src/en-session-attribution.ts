@@ -6,6 +6,7 @@ declare global {
     additionalCommentsTag: string;
     parentSession: string;
     attributionSession: string;
+    invalidSessionIframe: boolean;
   }
 }
 
@@ -210,7 +211,16 @@ function debugSession(session: string) {
   }
 }
 
-function sessionAttribution(updatepage = true, mirroredSession = '') {
+function handleSessionData(
+  data: { [key: string]: any },
+  updatepage = true,
+  mirroredSession = '',
+  crossDomainCookie = false
+) {
+  if (data.message && data.message == 'invalid iframe') {
+    window.invalidSessionIframe = true;
+  }
+
   const iframeURL = getScriptData('iframe');
   const iframeURLObj = new URL(iframeURL);
 
@@ -219,6 +229,249 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
     iframeURLObj.pathname
   );
 
+  // Don't run iframe session until parent session data is mirrored
+  const queryStr = window.location.search;
+  const urlParams = new URLSearchParams(queryStr);
+  let currentSession = '';
+  let enMergeTag = '';
+
+  const allowSession = urlParams.get('session-attribution');
+
+  // Fetch and decode session attribution data
+  const encodedSessionParam = urlParams.get('engrid_session');
+  let enSessionParam;
+  if (encodedSessionParam) {
+    enSessionParam = window.atob(encodedSessionParam);
+  }
+
+  let enCookie =
+    Object.prototype.hasOwnProperty.call(data, 'value') && data.value != ''
+      ? data.value
+      : '';
+
+  if (enCookie != '') {
+    enCookie = enCookie.replace(/["]+/g, '');
+    enCookie = window.atob(enCookie);
+  } else if (getCookie(enCookie) != '') {
+    enCookie = window.atob(getCookie(enCookie));
+  }
+
+  const supporterTag = getScriptData('additional_comments');
+  const additionalCommentsField: HTMLInputElement | HTMLTextAreaElement | null =
+    document.querySelector(`[name='${supporterTag}']`);
+  const memAttribute: string | null = window.additionalCommentsTag;
+
+  if (memAttribute) {
+    enMergeTag = memAttribute;
+  }
+
+  if (
+    enMergeTag == undefined &&
+    enCookie == '' &&
+    enSessionParam == undefined
+  ) {
+    currentSession = '';
+  } else {
+    // Get the most recent session info
+    const tempArr = [];
+    let latestTime = 0;
+    let mostRecentIndex = -1;
+
+    if (enCookie && enCookie.includes('|')) {
+      tempArr.push(enCookie);
+    }
+
+    if (enMergeTag && enMergeTag.includes('|')) {
+      tempArr.push(enMergeTag);
+    }
+
+    if (enSessionParam && enSessionParam.includes('|')) {
+      tempArr.push(enSessionParam);
+    }
+
+    for (let i = 0; i < tempArr.length; ++i) {
+      if (parseInt(getSessionObj(tempArr[i])['last_seen']) > latestTime) {
+        latestTime = parseInt(getSessionObj(tempArr[i])['last_seen']);
+        mostRecentIndex = i;
+      }
+    }
+
+    currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
+  }
+
+  // Determine whether session should be continued or not
+  const sessionLength = getScriptData('expiration', '900');
+  let newSession: boolean;
+  const oldSessionObj = getSessionObj(currentSession);
+
+  if (
+    currentSession === '' ||
+    currentSession == '{user_data~Additional Comments Stand In}' ||
+    (getCurrentTime() as number) - parseInt(oldSessionObj['last_seen']) >=
+      parseInt(sessionLength)
+  ) {
+    newSession = true;
+  } else {
+    newSession = false;
+  }
+
+  // Check if script is running outside Engaging Networks
+  if (!('pageJson' in window)) {
+    if (newSession) {
+      currentSession = createNewSession();
+    } else {
+      currentSession = updateSession(currentSession, updatepage);
+    }
+
+    let encodedSession = window.btoa(currentSession);
+    encodedSession = checkSessionLength(encodedSession);
+
+    setCookie('engrid_attribution_memory_cookie', encodedSession);
+    if (crossDomainCookie) {
+      crossDomain.storeValue(
+        'engrid_attribution_memory_cookie',
+        encodedSession,
+        () => {
+          return;
+        }
+      );
+    }
+
+    document.addEventListener('click', (event) => {
+      const eventTarget = event.target as HTMLAnchorElement;
+      if (eventTarget && eventTarget.tagName === 'A') {
+        if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
+          event.preventDefault();
+          const clickedURL = new URL(eventTarget.href);
+
+          if (encodedSession === '') {
+            window.location.href = clickedURL.href;
+          } else {
+            clickedURL.searchParams.set('engrid_session', encodedSession);
+            window.location.href = clickedURL.href;
+          }
+        }
+      }
+    });
+  } else {
+    const submitBtn = document.querySelector('.en__submit');
+    const enForm: HTMLFormElement | null =
+      document.querySelector('form.en__component');
+
+    const standInField = document.createElement('input');
+    const standInExists = document.querySelector(`[name='${supporterTag}']`);
+    standInField.setAttribute('name', supporterTag);
+    standInField.classList.add('en__field__input');
+    standInField.setAttribute('type', 'hidden');
+
+    if (!standInExists) {
+      enForm?.appendChild(standInField);
+    }
+
+    if (newSession) {
+      currentSession = createNewSession();
+    } else {
+      currentSession = updateSession(currentSession, updatepage);
+    }
+
+    if (window.location !== window.parent.location && mirroredSession !== '') {
+      currentSession = mirroredSession;
+    }
+
+    let encodedSession = window.btoa(currentSession);
+    encodedSession = checkSessionLength(encodedSession);
+
+    if (allowSession != 'false') {
+      if (!additionalCommentsField) {
+        standInField.value = JSON.stringify(
+          getSessionObj(currentSession)
+        ).replace(/"/g, "'");
+      } else {
+        additionalCommentsField.value = JSON.stringify(
+          getSessionObj(currentSession)
+        );
+      }
+    }
+
+    if (encodedSession === '') {
+      return;
+    } else {
+      setCookie('engrid_attribution_memory_cookie', encodedSession);
+      if (window.location == window.parent.location) {
+        if (crossDomainCookie) {
+          crossDomain.storeValue(
+            'engrid_attribution_memory_cookie',
+            encodedSession,
+            () => {
+              return;
+            }
+          );
+        }
+
+        if (additionalCommentsField && allowSession != 'false') {
+          additionalCommentsField.value = JSON.stringify(
+            getSessionObj(currentSession)
+          );
+        }
+      }
+    }
+
+    // Populate "Additional Comments" field
+    const additionalComments: HTMLTextAreaElement | null =
+      document.querySelector("[name='transaction.comments']");
+
+    if (!additionalComments) {
+      // Create Additional Comments field
+      const newField = document.createElement('input');
+      newField.classList.add('en__field__input');
+      newField.classList.add('en__field__input--hidden');
+      newField.setAttribute('type', 'hidden');
+      newField.setAttribute('name', 'transaction.comments');
+
+      const sessionObjStr =
+        'Parameter tracking: ' +
+        //prettier-ignore
+        JSON.stringify(getSessionObj(currentSession), null, "\n").replace(
+            /"/g,
+            "'"
+          );
+
+      newField.value = allowSession != 'false' ? sessionObjStr : '';
+
+      if (enForm) {
+        enForm.appendChild(newField);
+      }
+    }
+  }
+
+  const parentURL = new URL(document.location.href);
+
+  if (
+    window.location === window.parent.location &&
+    parentURL.searchParams.get('debug') === 'true'
+  ) {
+    debugSession(currentSession);
+  }
+
+  window.attributionSession = getSessionObj(currentSession);
+  window.parentSession = currentSession;
+  return;
+}
+
+function sessionAttribution(
+  updatepage = true,
+  invalidIframe = false,
+  mirroredSession = ''
+) {
+  const iframeURL = getScriptData('iframe');
+  const iframeURLObj = new URL(iframeURL);
+
+  const crossDomain = new CrossDomainStorage(
+    iframeURLObj.origin,
+    iframeURLObj.pathname
+  );
+
+  // Remove duplicate iframes
   const cookieIframe = document.querySelectorAll('iframe');
 
   cookieIframe.forEach((item) => {
@@ -227,245 +480,30 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
     }
   });
 
-  crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
-    // Don't run iframe session until parent session data is mirrored
-    const queryStr = window.location.search;
-    const urlParams = new URLSearchParams(queryStr);
-    let currentSession = '';
-    let enMergeTag = '';
-
-    const allowSession = urlParams.get('session-attribution');
-
-    // Fetch and decode session attribution data
-    const encodedSessionParam = urlParams.get('engrid_session');
-    let enSessionParam;
-    if (encodedSessionParam) {
-      enSessionParam = window.atob(encodedSessionParam);
-    }
-
-    let enCookie = Object.prototype.hasOwnProperty.call(data, 'value')
-      ? data.value
-      : '';
-
-    if (enCookie) {
-      enCookie = enCookie.replace(/["]+/g, '');
-      enCookie = window.atob(enCookie);
-    }
-
-    const supporterTag = getScriptData('additional_comments');
-    const additionalCommentsField:
-      | HTMLInputElement
-      | HTMLTextAreaElement
-      | null = document.querySelector(`[name='${supporterTag}']`);
-    const memAttribute: string | null = window.additionalCommentsTag;
-
-    if (memAttribute) {
-      enMergeTag = memAttribute;
-    }
-
-    if (
-      enMergeTag == undefined &&
-      enCookie == '' &&
-      enSessionParam == undefined
-    ) {
-      currentSession = '';
-    } else {
-      // Get the most recent session info
-      const tempArr = [];
-      let latestTime = 0;
-      let mostRecentIndex = -1;
-
-      if (enCookie && enCookie.includes('|')) {
-        tempArr.push(enCookie);
-      }
-
-      if (enMergeTag && enMergeTag.includes('|')) {
-        tempArr.push(enMergeTag);
-      }
-
-      if (enSessionParam && enSessionParam.includes('|')) {
-        tempArr.push(enSessionParam);
-      }
-
-      for (let i = 0; i < tempArr.length; ++i) {
-        if (parseInt(getSessionObj(tempArr[i])['last_seen']) > latestTime) {
-          latestTime = parseInt(getSessionObj(tempArr[i])['last_seen']);
-          mostRecentIndex = i;
-        }
-      }
-
-      currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
-    }
-
-    // Determine whether session should be continued or not
-    const sessionLength = getScriptData('expiration', '900');
-    let newSession: boolean;
-    const NUMBER = false;
-    const oldSessionObj = getSessionObj(currentSession);
-
-    if (
-      currentSession === '' ||
-      currentSession == '{user_data~Additional Comments Stand In}' ||
-      (getCurrentTime() as number) - parseInt(oldSessionObj['last_seen']) >=
-        parseInt(sessionLength)
-    ) {
-      newSession = true;
-    } else {
-      newSession = false;
-    }
-
-    // Check if script is running outside Engaging Networks
-    if (!('pageJson' in window)) {
-      if (newSession) {
-        currentSession = createNewSession();
-      } else {
-        currentSession = updateSession(currentSession, updatepage);
-      }
-
-      let encodedSession = window.btoa(currentSession);
-      encodedSession = checkSessionLength(encodedSession);
-
-      //setCookie("engrid_attribution_memory_cookie", encodedSession);
-      crossDomain.storeValue(
-        'engrid_attribution_memory_cookie',
-        encodedSession,
-        () => {
-          return;
-        }
-      );
-
-      document.addEventListener('click', (event) => {
-        const eventTarget = event.target as HTMLAnchorElement;
-        if (eventTarget && eventTarget.tagName === 'A') {
-          if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
-            event.preventDefault();
-            const clickedURL = new URL(eventTarget.href);
-
-            if (encodedSession === '') {
-              window.location.href = clickedURL.href;
-            } else {
-              clickedURL.searchParams.set('engrid_session', encodedSession);
-              window.location.href = clickedURL.href;
-            }
-          }
-        }
-      });
-    } else {
-      const submitBtn = document.querySelector('.en__submit');
-      const enForm: HTMLFormElement | null =
-        document.querySelector('form.en__component');
-
-      const standInField = document.createElement('input');
-      const standInExists = document.querySelector(`[name='${supporterTag}']`);
-      standInField.setAttribute('name', supporterTag);
-      standInField.classList.add('en__field__input');
-      standInField.setAttribute('type', 'hidden');
-
-      if (!standInExists) {
-        enForm?.appendChild(standInField);
-      }
-
-      if (newSession) {
-        currentSession = createNewSession();
-      } else {
-        currentSession = updateSession(currentSession, updatepage);
-      }
-
-      if (
-        window.location !== window.parent.location &&
-        mirroredSession !== ''
-      ) {
-        currentSession = mirroredSession;
-      }
-
-      let encodedSession = window.btoa(currentSession);
-      encodedSession = checkSessionLength(encodedSession);
-
-      if (allowSession != 'false') {
-        if (!additionalCommentsField) {
-          standInField.value = JSON.stringify(
-            getSessionObj(currentSession)
-          ).replace(/"/g, "'");
-        } else {
-          additionalCommentsField.value = JSON.stringify(
-            getSessionObj(currentSession)
-          );
-        }
-      }
-
-      if (encodedSession === '') {
-        return;
-      } else {
-        //setCookie("engrid_attribution_memory_cookie", encodedSession);
-        if (window.location == window.parent.location) {
-          crossDomain.storeValue(
-            'engrid_attribution_memory_cookie',
-            encodedSession,
-            () => {
-              return;
-            }
-          );
-          if (additionalCommentsField && allowSession != 'false') {
-            additionalCommentsField.value = JSON.stringify(
-              getSessionObj(currentSession)
-            );
-          }
-        }
-      }
-
-      // Populate "Additional Comments" field
-      const additionalComments: HTMLTextAreaElement | null =
-        document.querySelector("[name='transaction.comments']");
-
-      if (!additionalComments) {
-        // Create Additional Comments field
-        const newField = document.createElement('input');
-        newField.classList.add('en__field__input');
-        newField.classList.add('en__field__input--hidden');
-        newField.setAttribute('type', 'hidden');
-        newField.setAttribute('name', 'transaction.comments');
-
-        const sessionObjStr =
-          'Parameter tracking: ' +
-          //prettier-ignore
-          JSON.stringify(getSessionObj(currentSession), null, "\n").replace(
-            /"/g,
-            "'"
-          );
-
-        newField.value = allowSession != 'false' ? sessionObjStr : '';
-
-        if (enForm) {
-          enForm.appendChild(newField);
-        }
-      }
-    }
-
-    const parentURL = new URL(document.location.href);
-
-    if (
-      window.location === window.parent.location &&
-      parentURL.searchParams.get('debug') === 'true'
-    ) {
-      debugSession(currentSession);
-    }
-
-    window.attributionSession = getSessionObj(currentSession);
-    window.parentSession = currentSession;
-    return;
-  });
+  // Use cross-domain cookies if iframe works and use local cookies if not
+  if (!invalidIframe) {
+    crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
+      handleSessionData(data, updatepage, mirroredSession, true);
+    });
+  } else {
+    handleSessionData({ value: '' }, updatepage, mirroredSession, false);
+  }
 }
 
 let updateTime: ReturnType<typeof setInterval>;
 let parentSession: string | undefined;
 // Save session data on page load
 window.addEventListener('load', () => {
+  const invalidIframe =
+    window.invalidSessionIframe != undefined
+      ? window.invalidSessionIframe
+      : false;
   if (window.location === window.parent.location) {
-    sessionAttribution();
+    sessionAttribution(true, invalidIframe);
     parentSession = window.parentSession;
 
     updateTime = setInterval(() => {
-      sessionAttribution(false);
+      sessionAttribution(false, invalidIframe);
       parentSession = window.parentSession;
     }, 60000);
   } else {
@@ -477,15 +515,20 @@ window.addEventListener('load', () => {
 
 // Save session data when tab is in focus
 window.addEventListener('visibilitychange', () => {
+  const invalidIframe =
+    window.invalidSessionIframe != undefined
+      ? window.invalidSessionIframe
+      : false;
+
   if (
     window.location === window.parent.location &&
     document.visibilityState === 'visible'
   ) {
     const SAMEPAGE = false;
-    sessionAttribution(SAMEPAGE);
+    sessionAttribution(SAMEPAGE, invalidIframe);
 
     updateTime = setInterval(() => {
-      sessionAttribution(SAMEPAGE);
+      sessionAttribution(SAMEPAGE, invalidIframe);
     }, 60000);
   } else {
     clearInterval(updateTime);
@@ -494,17 +537,22 @@ window.addEventListener('visibilitychange', () => {
 
 // Pass messages between iframe and parent window
 window.addEventListener('message', function (event) {
+  const invalidIframe =
+    window.invalidSessionIframe != undefined
+      ? window.invalidSessionIframe
+      : false;
+
   if (
     window.location !== window.parent.location &&
     event.data !== 'Mirror session'
   ) {
-    sessionAttribution(false, event.data);
+    sessionAttribution(false, invalidIframe, event.data);
   } else if (
     window.location === window.parent.location &&
     event.data === 'Mirror session'
   ) {
     const SAMEPAGE = false;
-    sessionAttribution(SAMEPAGE);
+    sessionAttribution(SAMEPAGE, invalidIframe);
     parentSession = window.parentSession;
     this.document.querySelectorAll('iframe').forEach((item) => {
       if (

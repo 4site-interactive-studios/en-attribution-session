@@ -20,21 +20,21 @@ export class CrossDomainStorage {
   public init() {
     if (!this.iframe) {
       if (window.JSON && window.localStorage) {
-        this.iframe = document.createElement("iframe");
+        this.iframe = document.createElement('iframe');
         this.iframe.style.cssText =
-          "position:absolute;width:1px;height:1px;left:-9999px;";
+          'position:absolute;width:1px;height:1px;left:-9999px;';
         document.body.appendChild(this.iframe);
 
         if (window.addEventListener) {
           this.iframe.addEventListener(
-            "load",
+            'load',
             () => {
               this._iframeLoaded();
             },
             false
           );
           window.addEventListener(
-            "message",
+            'message',
             (event) => {
               this._handleMessage(event);
             },
@@ -42,7 +42,7 @@ export class CrossDomainStorage {
           );
         }
       } else {
-        throw new Error("Unsupported browser.");
+        throw new Error('Unsupported browser.');
       }
     }
 
@@ -50,22 +50,36 @@ export class CrossDomainStorage {
   }
 
   public storeValue(key: string, value: string, callback: (arg: any) => any) {
-    this._processRequest(
-      {
-        key: key,
-        value: value,
-        id: ++this.id,
-        operation: "write",
-      },
-      callback
-    );
+    this.callURL(this.origin + this.path).then((result) => {
+      if (result != 200) {
+        // Cancel cross-domain cookie processing if iframe doesn't load
+        callback({ message: 'invalid iframe' });
+      } else {
+        this._processRequest(
+          {
+            key: key,
+            value: value,
+            id: ++this.id,
+            operation: 'write',
+          },
+          callback
+        );
+      }
+    });
   }
 
   public requestValue(key: string, callback: (arg: any) => any) {
-    this._processRequest(
-      { key: key, id: ++this.id, operation: "read" },
-      callback
-    );
+    this.callURL(this.origin + this.path).then((result) => {
+      if (result != 200) {
+        // Cancel cross-domain cookie processing if iframe doesn't load
+        callback({ message: 'invalid iframe' });
+      } else {
+        this._processRequest(
+          { key: key, id: ++this.id, operation: 'read' },
+          callback
+        );
+      }
+    });
   }
 
   private _processRequest(
@@ -76,7 +90,6 @@ export class CrossDomainStorage {
       request: request,
       callback: callback,
     };
-
     if (this.iframeReady) {
       this._sendRequest(data);
     } else {
@@ -111,11 +124,16 @@ export class CrossDomainStorage {
     if (event.origin === this.origin) {
       const d = JSON.parse(event.data);
       if (this.requests[d.id]) {
-        if (typeof this.requests[d.id].callback === "function") {
+        if (typeof this.requests[d.id].callback === 'function') {
           this.requests[d.id].callback(d);
         }
       }
       delete this.requests[d.id];
     }
+  }
+
+  private async callURL(url: string) {
+    const response = await fetch(url);
+    return response.status;
   }
 }
