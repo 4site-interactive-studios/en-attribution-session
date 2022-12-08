@@ -218,7 +218,10 @@ function handleSessionData(
   crossDomainCookie = false
 ) {
   if (data.message && data.message == 'invalid iframe') {
+    // Restart function using local cookie if iframe doesn't load
     window.invalidSessionIframe = true;
+    sessionAttribution(updatepage, true, mirroredSession);
+    return;
   }
 
   const iframeURL = getScriptData('iframe');
@@ -244,16 +247,14 @@ function handleSessionData(
     enSessionParam = window.atob(encodedSessionParam);
   }
 
-  let enCookie =
-    Object.prototype.hasOwnProperty.call(data, 'value') && data.value != ''
-      ? data.value
-      : '';
+  let enCookie;
 
-  if (enCookie != '') {
+  if (crossDomainCookie && data.value && data.value != '') {
+    enCookie = data.value;
     enCookie = enCookie.replace(/["]+/g, '');
     enCookie = window.atob(enCookie);
-  } else if (getCookie(enCookie) != '') {
-    enCookie = window.atob(getCookie(enCookie));
+  } else if (getCookie('engrid_attribution_memory_cookie') != '') {
+    enCookie = window.atob(getCookie('engrid_attribution_memory_cookie'));
   }
 
   const supporterTag = getScriptData('additional_comments');
