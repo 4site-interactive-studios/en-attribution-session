@@ -219,6 +219,9 @@ function handleSessionData(
 ) {
   if (data.message && data.message == 'invalid iframe') {
     // Restart function using local cookie if iframe doesn't load
+    console.log(
+      'Invalid link for session-iframe attribute. Using local cookies instead...'
+    );
     window.invalidSessionIframe = true;
     sessionAttribution(updatepage, true, mirroredSession);
     return;
