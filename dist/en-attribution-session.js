@@ -11,6 +11,15 @@
 /* harmony export */ __webpack_require__.d(__webpack_exports__, {
 /* harmony export */   "CrossDomainStorage": () => (/* binding */ CrossDomainStorage)
 /* harmony export */ });
+var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
 class CrossDomainStorage {
     constructor(origin, path) {
         this.origin = origin;
@@ -24,35 +33,51 @@ class CrossDomainStorage {
     init() {
         if (!this.iframe) {
             if (window.JSON && window.localStorage) {
-                this.iframe = document.createElement("iframe");
+                this.iframe = document.createElement('iframe');
                 this.iframe.style.cssText =
-                    "position:absolute;width:1px;height:1px;left:-9999px;";
+                    'position:absolute;width:1px;height:1px;left:-9999px;';
                 document.body.appendChild(this.iframe);
                 if (window.addEventListener) {
-                    this.iframe.addEventListener("load", () => {
+                    this.iframe.addEventListener('load', () => {
                         this._iframeLoaded();
                     }, false);
-                    window.addEventListener("message", (event) => {
+                    window.addEventListener('message', (event) => {
                         this._handleMessage(event);
                     }, false);
                 }
             }
             else {
-                throw new Error("Unsupported browser.");
+                throw new Error('Unsupported browser.');
             }
         }
         this.iframe.src = this.origin + this.path;
     }
     storeValue(key, value, callback) {
-        this._processRequest({
-            key: key,
-            value: value,
-            id: ++this.id,
-            operation: "write",
-        }, callback);
+        this.callURL(this.origin + this.path).then((result) => {
+            if (result != 200) {
+                // Cancel cross-domain cookie processing if iframe doesn't load
+                callback({ message: 'invalid iframe' });
+            }
+            else {
+                this._processRequest({
+                    key: key,
+                    value: value,
+                    id: ++this.id,
+                    operation: 'write',
+                }, callback);
+            }
+        });
     }
     requestValue(key, callback) {
-        this._processRequest({ key: key, id: ++this.id, operation: "read" }, callback);
+        this.callURL(this.origin + this.path).then((result) => {
+            if (result != 200) {
+                // Cancel cross-domain cookie processing if iframe doesn't load
+                callback({ message: 'invalid iframe' });
+            }
+            else {
+                this._processRequest({ key: key, id: ++this.id, operation: 'read' }, callback);
+            }
+        });
     }
     _processRequest(request, callback) {
         const data = {
@@ -86,12 +111,18 @@ class CrossDomainStorage {
         if (event.origin === this.origin) {
             const d = JSON.parse(event.data);
             if (this.requests[d.id]) {
-                if (typeof this.requests[d.id].callback === "function") {
+                if (typeof this.requests[d.id].callback === 'function') {
                     this.requests[d.id].callback(d);
                 }
             }
             delete this.requests[d.id];
         }
+    }
+    callURL(url) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield fetch(url);
+            return response.status;
+        });
     }
 }
 
@@ -340,7 +371,7 @@ function createNewSession() {
         referralURL = document.referrer === '' ? 'direct' : document.referrer;
         if (referralURL !== 'direct') {
             const tempURL = new URL(referralURL);
-            referralURL = tempURL.hostname;
+            referralURL = tempURL.protocol + '//' + tempURL.hostname;
         }
     }
     currentURL.searchParams.delete('engrid_session');
@@ -350,7 +381,14 @@ function createNewSession() {
     sessionParams.push('1'); // Session page counter
     sessionParams.push(referralURL); // First referral URL
     if (currentURL.search.length > 0) {
-        sessionParams.push(currentURL.search.slice(1)); // First referral parameters
+        let referralParamString = currentURL.search.slice(1);
+        // Remove hanging '=' symbols
+        referralParamString =
+            referralParamString[referralParamString.length - 1] == '='
+                ? referralParamString.slice(0, referralParamString.length - 1)
+                : referralParamString;
+        referralParamString = referralParamString.replace(/=&/g, '&');
+        sessionParams.push(referralParamString); // First referral parameters
     }
     else {
         sessionParams.push('');
@@ -369,7 +407,7 @@ function updateSession(currentSession, updatepage = true) {
         referralURL = document.referrer === '' ? 'direct' : document.referrer;
         if (referralURL !== 'direct') {
             const tempURL = new URL(referralURL);
-            referralURL = tempURL.hostname;
+            referralURL = tempURL.protocol + '//' + tempURL.hostname;
         }
     }
     if (updatepage) {
@@ -378,8 +416,14 @@ function updateSession(currentSession, updatepage = true) {
     currentURL.searchParams.delete('engrid_session');
     // Update current referral URL
     sessionParams['current_referral'] = referralURL;
-    sessionParams['current_referral_params'] =
-        currentURL.search.length > 0 ? currentURL.search.slice(1) : '';
+    let referralParamString = currentURL.search.length > 0 ? currentURL.search.slice(1) : '';
+    // Remove hanging '=' symbols
+    referralParamString =
+        referralParamString[referralParamString.length - 1] == '='
+            ? referralParamString.slice(0, referralParamString.length - 1)
+            : referralParamString;
+    referralParamString = referralParamString.replace(/=&/g, '&');
+    sessionParams['current_referral_params'] = referralParamString;
     return Object.values(sessionParams).join('|');
 }
 function checkSessionLength(session) {
@@ -443,10 +487,195 @@ function debugSession(session) {
         console.log("[Additional Comments Field]\n", commentsField.value);
     }
 }
-function sessionAttribution(updatepage = true, mirroredSession = '') {
+function handleSessionData(data, updatepage = true, mirroredSession = '', crossDomainCookie = false) {
+    if (data.message && data.message == 'invalid iframe') {
+        // Restart function using local cookie if iframe doesn't load
+        console.log('Invalid link for session-iframe attribute. Using local cookies instead...');
+        window.invalidSessionIframe = true;
+        sessionAttribution(updatepage, true, mirroredSession);
+        return;
+    }
     const iframeURL = getScriptData('iframe');
     const iframeURLObj = new URL(iframeURL);
     const crossDomain = new _CrossDomainStorage__WEBPACK_IMPORTED_MODULE_0__.CrossDomainStorage(iframeURLObj.origin, iframeURLObj.pathname);
+    // Don't run iframe session until parent session data is mirrored
+    const queryStr = window.location.search;
+    const urlParams = new URLSearchParams(queryStr);
+    let currentSession = '';
+    let enMergeTag = '';
+    const allowSession = urlParams.get('session-attribution');
+    // Fetch and decode session attribution data
+    const encodedSessionParam = urlParams.get('engrid_session');
+    let enSessionParam;
+    if (encodedSessionParam) {
+        enSessionParam = window.atob(encodedSessionParam);
+    }
+    let enCookie;
+    if (crossDomainCookie && data.value && data.value != '') {
+        enCookie = data.value;
+        enCookie = enCookie.replace(/["]+/g, '');
+        enCookie = window.atob(enCookie);
+    }
+    else if (getCookie('engrid_attribution_memory_cookie') != '') {
+        enCookie = window.atob(getCookie('engrid_attribution_memory_cookie'));
+    }
+    const supporterTag = getScriptData('additional_comments');
+    const additionalCommentsField = document.querySelector(`[name='${supporterTag}']`);
+    const memAttribute = window.additionalCommentsTag;
+    if (memAttribute) {
+        enMergeTag = memAttribute;
+    }
+    if (enMergeTag == undefined &&
+        enCookie == '' &&
+        enSessionParam == undefined) {
+        currentSession = '';
+    }
+    else {
+        // Get the most recent session info
+        const tempArr = [];
+        let latestTime = 0;
+        let mostRecentIndex = -1;
+        if (enCookie && enCookie.includes('|')) {
+            tempArr.push(enCookie);
+        }
+        if (enMergeTag && enMergeTag.includes('|')) {
+            tempArr.push(enMergeTag);
+        }
+        if (enSessionParam && enSessionParam.includes('|')) {
+            tempArr.push(enSessionParam);
+        }
+        for (let i = 0; i < tempArr.length; ++i) {
+            if (parseInt(getSessionObj(tempArr[i])['last_seen']) > latestTime) {
+                latestTime = parseInt(getSessionObj(tempArr[i])['last_seen']);
+                mostRecentIndex = i;
+            }
+        }
+        currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
+    }
+    // Determine whether session should be continued or not
+    const sessionLength = getScriptData('expiration', '900');
+    let newSession;
+    const oldSessionObj = getSessionObj(currentSession);
+    if (currentSession === '' ||
+        currentSession == '{user_data~Additional Comments Stand In}' ||
+        getCurrentTime() - parseInt(oldSessionObj['last_seen']) >=
+            parseInt(sessionLength)) {
+        newSession = true;
+    }
+    else {
+        newSession = false;
+    }
+    // Check if script is running outside Engaging Networks
+    if (!('pageJson' in window)) {
+        if (newSession) {
+            currentSession = createNewSession();
+        }
+        else {
+            currentSession = updateSession(currentSession, updatepage);
+        }
+        let encodedSession = window.btoa(currentSession);
+        encodedSession = checkSessionLength(encodedSession);
+        setCookie('engrid_attribution_memory_cookie', encodedSession);
+        if (crossDomainCookie) {
+            crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
+                return;
+            });
+        }
+        document.addEventListener('click', (event) => {
+            const eventTarget = event.target;
+            if (eventTarget && eventTarget.tagName === 'A') {
+                if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
+                    event.preventDefault();
+                    const clickedURL = new URL(eventTarget.href);
+                    if (encodedSession === '') {
+                        window.location.href = clickedURL.href;
+                    }
+                    else {
+                        clickedURL.searchParams.set('engrid_session', encodedSession);
+                        window.location.href = clickedURL.href;
+                    }
+                }
+            }
+        });
+    }
+    else {
+        const submitBtn = document.querySelector('.en__submit');
+        const enForm = document.querySelector('form.en__component');
+        const standInField = document.createElement('input');
+        const standInExists = document.querySelector(`[name='${supporterTag}']`);
+        standInField.setAttribute('name', supporterTag);
+        standInField.classList.add('en__field__input');
+        standInField.setAttribute('type', 'hidden');
+        if (!standInExists) {
+            enForm === null || enForm === void 0 ? void 0 : enForm.appendChild(standInField);
+        }
+        if (newSession) {
+            currentSession = createNewSession();
+        }
+        else {
+            currentSession = updateSession(currentSession, updatepage);
+        }
+        if (window.location !== window.parent.location && mirroredSession !== '') {
+            currentSession = mirroredSession;
+        }
+        let encodedSession = window.btoa(currentSession);
+        encodedSession = checkSessionLength(encodedSession);
+        if (allowSession != 'false') {
+            if (!additionalCommentsField) {
+                standInField.value = JSON.stringify(getSessionObj(currentSession)).replace(/"/g, "'");
+            }
+            else {
+                additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+            }
+        }
+        if (encodedSession === '') {
+            return;
+        }
+        else {
+            setCookie('engrid_attribution_memory_cookie', encodedSession);
+            if (window.location == window.parent.location) {
+                if (crossDomainCookie) {
+                    crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
+                        return;
+                    });
+                }
+                if (additionalCommentsField && allowSession != 'false') {
+                    additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                }
+            }
+        }
+        // Populate "Additional Comments" field
+        const additionalComments = document.querySelector("[name='transaction.comments']");
+        if (!additionalComments) {
+            // Create Additional Comments field
+            const newField = document.createElement('input');
+            newField.classList.add('en__field__input');
+            newField.classList.add('en__field__input--hidden');
+            newField.setAttribute('type', 'hidden');
+            newField.setAttribute('name', 'transaction.comments');
+            const sessionObjStr = 'Parameter tracking: ' +
+                //prettier-ignore
+                JSON.stringify(getSessionObj(currentSession), null, "\n").replace(/"/g, "'");
+            newField.value = allowSession != 'false' ? sessionObjStr : '';
+            if (enForm) {
+                enForm.appendChild(newField);
+            }
+        }
+    }
+    const parentURL = new URL(document.location.href);
+    if (window.location === window.parent.location &&
+        parentURL.searchParams.get('debug') === 'true') {
+        debugSession(currentSession);
+    }
+    window.attributionSession = getSessionObj(currentSession);
+    window.parentSession = currentSession;
+    return;
+}
+function sessionAttribution(updatepage = true, invalidIframe = false, mirroredSession = '') {
+    const iframeURL = getScriptData('iframe');
+    const iframeURLObj = new URL(iframeURL);
+    const crossDomain = new _CrossDomainStorage__WEBPACK_IMPORTED_MODULE_0__.CrossDomainStorage(iframeURLObj.origin, iframeURLObj.pathname);
+    // Remove duplicate iframes
     const cookieIframe = document.querySelectorAll('iframe');
     cookieIframe.forEach((item) => {
         var _a;
@@ -454,185 +683,28 @@ function sessionAttribution(updatepage = true, mirroredSession = '') {
             (_a = item.parentElement) === null || _a === void 0 ? void 0 : _a.removeChild(item);
         }
     });
-    crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
-        // Don't run iframe session until parent session data is mirrored
-        const queryStr = window.location.search;
-        const urlParams = new URLSearchParams(queryStr);
-        let currentSession = '';
-        let enMergeTag = '';
-        const allowSession = urlParams.get('session-attribution');
-        // Fetch and decode session attribution data
-        const encodedSessionParam = urlParams.get('engrid_session');
-        let enSessionParam;
-        if (encodedSessionParam) {
-            enSessionParam = window.atob(encodedSessionParam);
-        }
-        let enCookie = Object.prototype.hasOwnProperty.call(data, 'value')
-            ? data.value
-            : '';
-        if (enCookie) {
-            enCookie = enCookie.replace(/["]+/g, '');
-            enCookie = window.atob(enCookie);
-        }
-        const supporterTag = getScriptData('additional_comments');
-        const additionalCommentsField = document.querySelector(`[name='${supporterTag}']`);
-        const memAttribute = window.additionalCommentsTag;
-        if (memAttribute) {
-            enMergeTag = memAttribute;
-        }
-        if (enMergeTag == undefined &&
-            enCookie == '' &&
-            enSessionParam == undefined) {
-            currentSession = '';
-        }
-        else {
-            // Get the most recent session info
-            const tempArr = [];
-            let latestTime = 0;
-            let mostRecentIndex = -1;
-            if (enCookie && enCookie.includes('|')) {
-                tempArr.push(enCookie);
-            }
-            if (enMergeTag && enMergeTag.includes('|')) {
-                tempArr.push(enMergeTag);
-            }
-            if (enSessionParam && enSessionParam.includes('|')) {
-                tempArr.push(enSessionParam);
-            }
-            for (let i = 0; i < tempArr.length; ++i) {
-                if (parseInt(getSessionObj(tempArr[i])['last_seen']) > latestTime) {
-                    latestTime = parseInt(getSessionObj(tempArr[i])['last_seen']);
-                    mostRecentIndex = i;
-                }
-            }
-            currentSession = mostRecentIndex > -1 ? tempArr[mostRecentIndex] : '';
-        }
-        // Determine whether session should be continued or not
-        const sessionLength = getScriptData('expiration', '900');
-        let newSession;
-        const NUMBER = false;
-        const oldSessionObj = getSessionObj(currentSession);
-        if (currentSession === '' ||
-            currentSession == '{user_data~Additional Comments Stand In}' ||
-            getCurrentTime() - parseInt(oldSessionObj['last_seen']) >=
-                parseInt(sessionLength)) {
-            newSession = true;
-        }
-        else {
-            newSession = false;
-        }
-        // Check if script is running outside Engaging Networks
-        if (!('pageJson' in window)) {
-            if (newSession) {
-                currentSession = createNewSession();
-            }
-            else {
-                currentSession = updateSession(currentSession, updatepage);
-            }
-            let encodedSession = window.btoa(currentSession);
-            encodedSession = checkSessionLength(encodedSession);
-            //setCookie("engrid_attribution_memory_cookie", encodedSession);
-            crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
-                return;
-            });
-            document.addEventListener('click', (event) => {
-                const eventTarget = event.target;
-                if (eventTarget && eventTarget.tagName === 'A') {
-                    if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
-                        event.preventDefault();
-                        const clickedURL = new URL(eventTarget.href);
-                        if (encodedSession === '') {
-                            window.location.href = clickedURL.href;
-                        }
-                        else {
-                            clickedURL.searchParams.set('engrid_session', encodedSession);
-                            window.location.href = clickedURL.href;
-                        }
-                    }
-                }
-            });
-        }
-        else {
-            const submitBtn = document.querySelector('.en__submit');
-            const enForm = document.querySelector('form.en__component');
-            const standInField = document.createElement('input');
-            const standInExists = document.querySelector(`[name='${supporterTag}']`);
-            standInField.setAttribute('name', supporterTag);
-            standInField.classList.add('en__field__input');
-            standInField.setAttribute('type', 'hidden');
-            if (!standInExists) {
-                enForm === null || enForm === void 0 ? void 0 : enForm.appendChild(standInField);
-            }
-            if (newSession) {
-                currentSession = createNewSession();
-            }
-            else {
-                currentSession = updateSession(currentSession, updatepage);
-            }
-            if (window.location !== window.parent.location &&
-                mirroredSession !== '') {
-                currentSession = mirroredSession;
-            }
-            let encodedSession = window.btoa(currentSession);
-            encodedSession = checkSessionLength(encodedSession);
-            if (allowSession != 'false') {
-                if (!additionalCommentsField) {
-                    standInField.value = JSON.stringify(getSessionObj(currentSession)).replace(/"/g, "'");
-                }
-                else {
-                    additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
-                }
-            }
-            if (encodedSession === '') {
-                return;
-            }
-            else {
-                //setCookie("engrid_attribution_memory_cookie", encodedSession);
-                if (window.location == window.parent.location) {
-                    crossDomain.storeValue('engrid_attribution_memory_cookie', encodedSession, () => {
-                        return;
-                    });
-                    if (additionalCommentsField && allowSession != 'false') {
-                        additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
-                    }
-                }
-            }
-            // Populate "Additional Comments" field
-            const additionalComments = document.querySelector("[name='transaction.comments']");
-            if (!additionalComments) {
-                // Create Additional Comments field
-                const newField = document.createElement('input');
-                newField.classList.add('en__field__input');
-                newField.classList.add('en__field__input--hidden');
-                newField.setAttribute('type', 'hidden');
-                newField.setAttribute('name', 'transaction.comments');
-                const sessionObjStr = 'Parameter tracking: ' +
-                    //prettier-ignore
-                    JSON.stringify(getSessionObj(currentSession), null, "\n").replace(/"/g, "'");
-                newField.value = allowSession != 'false' ? sessionObjStr : '';
-                if (enForm) {
-                    enForm.appendChild(newField);
-                }
-            }
-        }
-        const parentURL = new URL(document.location.href);
-        if (window.location === window.parent.location &&
-            parentURL.searchParams.get('debug') === 'true') {
-            debugSession(currentSession);
-        }
-        window.parentSession = currentSession;
-        return;
-    });
+    // Use cross-domain cookies if iframe works and use local cookies if not
+    if (!invalidIframe) {
+        crossDomain.requestValue('engrid_attribution_memory_cookie', (data) => {
+            handleSessionData(data, updatepage, mirroredSession, true);
+        });
+    }
+    else {
+        handleSessionData({ value: '' }, updatepage, mirroredSession, false);
+    }
 }
 let updateTime;
 let parentSession;
 // Save session data on page load
 window.addEventListener('load', () => {
+    const invalidIframe = window.invalidSessionIframe != undefined
+        ? window.invalidSessionIframe
+        : false;
     if (window.location === window.parent.location) {
-        sessionAttribution();
+        sessionAttribution(true, invalidIframe);
         parentSession = window.parentSession;
         updateTime = setInterval(() => {
-            sessionAttribution(false);
+            sessionAttribution(false, invalidIframe);
             parentSession = window.parentSession;
         }, 60000);
     }
@@ -644,12 +716,15 @@ window.addEventListener('load', () => {
 });
 // Save session data when tab is in focus
 window.addEventListener('visibilitychange', () => {
+    const invalidIframe = window.invalidSessionIframe != undefined
+        ? window.invalidSessionIframe
+        : false;
     if (window.location === window.parent.location &&
         document.visibilityState === 'visible') {
         const SAMEPAGE = false;
-        sessionAttribution(SAMEPAGE);
+        sessionAttribution(SAMEPAGE, invalidIframe);
         updateTime = setInterval(() => {
-            sessionAttribution(SAMEPAGE);
+            sessionAttribution(SAMEPAGE, invalidIframe);
         }, 60000);
     }
     else {
@@ -658,14 +733,17 @@ window.addEventListener('visibilitychange', () => {
 });
 // Pass messages between iframe and parent window
 window.addEventListener('message', function (event) {
+    const invalidIframe = window.invalidSessionIframe != undefined
+        ? window.invalidSessionIframe
+        : false;
     if (window.location !== window.parent.location &&
         event.data !== 'Mirror session') {
-        sessionAttribution(false, event.data);
+        sessionAttribution(false, invalidIframe, event.data);
     }
     else if (window.location === window.parent.location &&
         event.data === 'Mirror session') {
         const SAMEPAGE = false;
-        sessionAttribution(SAMEPAGE);
+        sessionAttribution(SAMEPAGE, invalidIframe);
         parentSession = window.parentSession;
         this.document.querySelectorAll('iframe').forEach((item) => {
             var _a;
