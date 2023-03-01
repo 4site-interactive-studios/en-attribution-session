@@ -625,7 +625,7 @@ function handleSessionData(data, updatepage = true, mirroredSession = '', crossD
                 standInField.value = JSON.stringify(getSessionObj(currentSession)).replace(/"/g, "'");
             }
             else {
-                additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession));
+                additionalCommentsField.value = JSON.stringify(getSessionObj(currentSession)).replace(/"/g, "'");
             }
         }
         if (encodedSession === '') {

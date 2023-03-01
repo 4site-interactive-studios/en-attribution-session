@@ -393,7 +393,7 @@ function handleSessionData(
       } else {
         additionalCommentsField.value = JSON.stringify(
           getSessionObj(currentSession)
-        );
+        ).replace(/"/g, "'");
       }
     }
 
