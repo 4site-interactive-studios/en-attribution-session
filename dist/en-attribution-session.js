@@ -731,18 +731,41 @@ window.addEventListener('visibilitychange', () => {
         clearInterval(updateTime);
     }
 });
+const messageIdsHandled = [];
 // Pass messages between iframe and parent window
 window.addEventListener('message', function (event) {
     const invalidIframe = window.invalidSessionIframe != undefined
         ? window.invalidSessionIframe
         : false;
-    if (window.location !== window.parent.location &&
-        event.data !== 'Mirror session') {
-        sessionAttribution(false, invalidIframe, event.data);
+    if (window.location !== window.parent.location) {
+        let eventData;
+        try {
+            eventData = JSON.parse(event.data);
+        }
+        catch (e) {
+            eventData = event.data;
+        }
+        const requiredParams = ["key", "value", "id"];
+        const isValidEvent = typeof eventData === "object" && Object.keys(eventData).every((param) => requiredParams.includes(param));
+        const isValidParentSessionEvent = typeof eventData === "string" && eventData.split("|").length === 8;
+        if (isValidEvent && !messageIdsHandled.includes(eventData.id)) {
+            messageIdsHandled.push(eventData.id);
+            //console.log('[Attribution script]: Successful non-mirror message:', eventData)
+            sessionAttribution(false, invalidIframe, event.data);
+        }
+        else if (isValidParentSessionEvent && !messageIdsHandled.includes(eventData)) {
+            messageIdsHandled.push(eventData);
+            //console.log('[Attribution script]: Successful non-mirror message:', eventData)
+            sessionAttribution(false, invalidIframe, event.data);
+        }
+        else {
+            //console.log('[Attribution script]: Invalid message (wrong format or already processed):', eventData)
+        }
     }
     else if (window.location === window.parent.location &&
         event.data === 'Mirror session') {
         const SAMEPAGE = false;
+        //console.log('[Attribution script]: Running for mirror session');
         sessionAttribution(SAMEPAGE, invalidIframe);
         parentSession = window.parentSession;
         this.document.querySelectorAll('iframe').forEach((item) => {
