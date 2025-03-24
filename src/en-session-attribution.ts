@@ -137,7 +137,7 @@ function updateSession(currentSession: string, updatepage = true) {
 function checkSessionLength(session: string) {
   let decodedSession = window.atob(session);
 
-  if (session.length > 1500 && decodedSession.split('|').length > 6) {
+  if (session.length > 1000 && decodedSession.split('|').length > 6) {
     //const sessionParams = decodedSession.split("|");
     const sessionParams = getSessionObj(decodedSession);
     delete sessionParams['current_referral'];
@@ -148,7 +148,7 @@ function checkSessionLength(session: string) {
   }
 
   // Check session length after removing latest referral URL info
-  if (session.length > 1500) {
+  if (session.length > 1000) {
     return '';
   }
 
@@ -352,7 +352,20 @@ function handleSessionData(
             window.location.href = clickedURL.href;
           } else {
             clickedURL.searchParams.set('engrid_session', encodedSession);
-            window.location.href = clickedURL.href;
+
+            /*
+              MT Update 24/03/25:
+              EN will automatically fill referral URLs into a column on the export
+              This Referral URL cannot be longer than 1000 characters or it will break the CRM sync
+              https://tncdigital.atlassian.net/browse/EN-2454
+              https://app.productive.io/2650-4site-interactive-studios-inc/tasks/11387858
+             */
+              if (clickedURL.href.length > 1000) {
+                clickedURL.searchParams.delete('engrid_session');
+              }
+              /*  END: MT Update 24/03/25: */
+
+             window.location.href = clickedURL.href;
           }
         }
       }
