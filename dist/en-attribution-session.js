@@ -597,6 +597,10 @@ function handleSessionData(data, updatepage = true, mirroredSession = '', crossD
         document.addEventListener('click', (event) => {
             const eventTarget = event.target;
             if (eventTarget && eventTarget.tagName === 'A') {
+                if (eventTarget.hasAttribute("data-donation-lightbox")) {
+                    // Don't redirect if the link is a donation lightbox
+                    return;
+                }
                 if (/\/page\/[0-9]{5,6}\//.test(eventTarget.href)) {
                     event.preventDefault();
                     const clickedURL = new URL(eventTarget.href);
