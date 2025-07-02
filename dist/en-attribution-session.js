@@ -109,13 +109,23 @@ class CrossDomainStorage {
     }
     _handleMessage(event) {
         if (event.origin === this.origin) {
-            const d = JSON.parse(event.data);
-            if (this.requests[d.id]) {
+            // This handler only deals with stringified JSON messages
+            if (typeof event.data !== 'string') {
+                return;
+            }
+            let d;
+            try {
+                d = JSON.parse(event.data);
+            }
+            catch (e) {
+                return;
+            }
+            if (d.id && this.requests[d.id]) {
                 if (typeof this.requests[d.id].callback === 'function') {
                     this.requests[d.id].callback(d);
                 }
+                delete this.requests[d.id];
             }
-            delete this.requests[d.id];
         }
     }
     callURL(url) {
@@ -446,6 +456,9 @@ function getCurrentTime() {
     return Math.round(Date.now() / 1000);
 }
 function getSessionObj(session) {
+    // Sometimes we somehow get an object here instead of a string
+    if (typeof session !== 'string')
+        return;
     if (session.indexOf('Parameter') === -1) {
         const sessionArr = session.split('|');
         const sessionObj = {};
@@ -757,7 +770,7 @@ window.addEventListener('message', function (event) {
             eventData = event.data;
         }
         const requiredParams = ["key", "value", "id"];
-        const isValidEvent = typeof eventData === "object" && Object.keys(eventData).every((param) => requiredParams.includes(param));
+        const isValidEvent = typeof eventData === "object" && requiredParams.every(param => !!eventData[param]);
         const isValidParentSessionEvent = typeof eventData === "string" && eventData.split("|").length === 8;
         if (isValidEvent && !messageIdsHandled.includes(eventData.id)) {
             messageIdsHandled.push(eventData.id);

@@ -122,13 +122,22 @@ export class CrossDomainStorage {
 
   private _handleMessage(event: MessageEvent) {
     if (event.origin === this.origin) {
-      const d = JSON.parse(event.data);
-      if (this.requests[d.id]) {
+      // This handler only deals with stringified JSON messages
+      if (typeof event.data !== 'string') {
+        return;
+      }
+      let d;
+      try {
+        d = JSON.parse(event.data);
+      } catch (e) {
+        return;
+      }
+      if (d.id && this.requests[d.id]) {
         if (typeof this.requests[d.id].callback === 'function') {
           this.requests[d.id].callback(d);
         }
+        delete this.requests[d.id];
       }
-      delete this.requests[d.id];
     }
   }
 

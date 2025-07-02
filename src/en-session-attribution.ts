@@ -160,6 +160,9 @@ function getCurrentTime() {
 }
 
 function getSessionObj(session: string) {
+  // Sometimes we somehow get an object here instead of a string
+  if (typeof session !== 'string') return;
+
   if (session.indexOf('Parameter') === -1) {
     const sessionArr = session.split('|');
     const sessionObj: { [key: string]: string } = {};
@@ -562,14 +565,14 @@ window.addEventListener('message', function (event) {
       : false;
 
   if (window.location !== window.parent.location) {
-      let eventData;
+      let eventData: any;
       try {
         eventData = JSON.parse(event.data);
       } catch (e) {
         eventData = event.data;
       }
       const requiredParams = ["key", "value", "id"];
-      const isValidEvent = typeof eventData === "object" && Object.keys(eventData).every((param) => requiredParams.includes(param));
+      const isValidEvent = typeof eventData === "object" && requiredParams.every(param => !!eventData[param]);
       const isValidParentSessionEvent = typeof eventData === "string" && eventData.split("|").length === 8;
       if (isValidEvent && !messageIdsHandled.includes(eventData.id)) {
         messageIdsHandled.push(eventData.id);
